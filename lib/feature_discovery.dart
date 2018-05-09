@@ -1,9 +1,22 @@
-import 'package:flutter/material.dart';
-import 'package:meta/meta.dart';
+import 'dart:async';
 
-class FeatureDiscovery extends StatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
+import 'package:overlays/animations.dart';
+
+final Logger _log = new Logger('feature_discovery');
+
+/// Material Design Feature Discovery Widget
+/// https://material.io/guidelines/growth-communications/feature-discovery.html
+///
+/// FeatureDiscovery is a root coordinator Widget that activates one or more
+/// discoverable features, possibly in order as the user taps on things. Those
+/// discoverable features are represented by lower Widgets in the tree like
+/// [DescribedDiscoverableFeature] and [PulsingDiscoverableFeature].
+class FeatureDiscoveryStepper extends StatefulWidget {
 
   static FeatureDiscoveryController of(BuildContext context) {
+    _log.fine('FeatureDiscoveryController: ${context.ancestorStateOfType(new TypeMatcher<_FeatureDiscoveryState>())}');
     return context.ancestorStateOfType(
         new TypeMatcher<_FeatureDiscoveryState>()
     ) as FeatureDiscoveryController;
@@ -11,7 +24,7 @@ class FeatureDiscovery extends StatefulWidget {
 
   final Widget child;
 
-  FeatureDiscovery({
+  FeatureDiscoveryStepper({
     this.child,
   });
 
@@ -19,23 +32,173 @@ class FeatureDiscovery extends StatefulWidget {
   _FeatureDiscoveryState createState() => new _FeatureDiscoveryState();
 }
 
-class _FeatureDiscoveryState extends State<FeatureDiscovery> with FeatureDiscoveryController {
+class _FeatureDiscoveryState extends State<FeatureDiscoveryStepper> with FeatureDiscoveryController {
 
-  OverlayEntry activeFeatureOverlay;
+//  OverlayEntry activeFeatureOverlay;
+  List<GlobalKey> _activeSteps;
+  int _activeStepIndex;
+
+  // TODO: consider using string instead of globalkey
+  GlobalKey get activeStep => _activeSteps?.elementAt(_activeStepIndex);
 
   @override
-  void highlightFeature({
-    @required GlobalKey featureUiKey,
-    @required IconData targetIcon,
-    @required Color color,
-    String title = '',
-    String description = '',
-  }) {
-    if (null != activeFeatureOverlay) {
-      activeFeatureOverlay.remove();
+  void discoverFeatures(List<GlobalKey> steps) {
+    _log.fine('discoverFeatures() - steps: $steps');
+    // TODO: handle situation where steps are already in progress
+
+    setState(() {
+      _activeSteps = steps;
+      _activeStepIndex = 0;
+    });
+  }
+
+  @override
+  void markStepComplete(GlobalKey stepId) {
+    if (_activeSteps != null && _activeSteps[_activeStepIndex] == stepId) {
+      _log.fine('markStepComplete() - now complete: $stepId');
+      if (_activeStepIndex < _activeSteps.length - 1) {
+        _log.fine('Moving to next step.');
+        setState(() => ++_activeStepIndex);
+      } else {
+        _log.fine('Steps are complete.');
+        setState(() {
+          _activeSteps = null;
+          _activeStepIndex = 0;
+        });
+      }
+    }
+  }
+
+  @override
+  void cancelDiscovery() {
+    _log.fine('Cancelling active discovery.');
+    setState(() {
+      _activeSteps = null;
+      _activeStepIndex = 0;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return new _InheritedFeatureDiscovery(
+      activeSteps: _activeSteps,
+      activeIndex: _activeStepIndex,
+      child: widget.child,
+    );
+  }
+}
+
+class _InheritedFeatureDiscovery extends InheritedWidget {
+
+  static _InheritedFeatureDiscovery of(BuildContext context) {
+    return context.inheritFromWidgetOfExactType(_InheritedFeatureDiscovery);
+  }
+
+  final List<GlobalKey> _activeSteps;
+  final int _activeIndex;
+
+  _InheritedFeatureDiscovery({
+    activeSteps,
+    activeIndex,
+    child,
+  }) : _activeSteps = activeSteps,
+        _activeIndex = activeIndex,
+        super(child: child);
+
+  GlobalKey get activeStep => _activeSteps?.elementAt(_activeIndex);
+
+  @override
+  bool updateShouldNotify(_InheritedFeatureDiscovery oldWidget) {
+    return oldWidget._activeIndex != _activeIndex ||
+      oldWidget._activeSteps != _activeSteps;
+  }
+
+}
+
+abstract class FeatureDiscoveryController {
+
+  void discoverFeatures(List<GlobalKey> steps);
+
+  void markStepComplete(GlobalKey stepId);
+
+  void cancelDiscovery();
+}
+
+/// A feature that can be discovered.
+///
+/// When an ancestor DescribedDiscoverableFeature Widget sets its active step to
+/// this one, this DescribedDiscoverableFeature will emit a radial background,
+/// display a title and description, and show a pulsing icon on top of the
+/// [child] Widget given to this DescribedDiscoverableFeature.
+class DescribedDiscoverableFeature extends StatefulWidget {
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+  final DiscoveryBuilder builder;
+
+  DescribedDiscoverableFeature({
+    key,
+    this.title,
+    this.description,
+    this.icon,
+    this.color,
+    this.onPressed,
+    this.builder,
+  }) : super(key: key);
+
+  @override
+  _DescribedDiscoverableFeatureState createState() => new _DescribedDiscoverableFeatureState();
+}
+
+class _DescribedDiscoverableFeatureState extends State<DescribedDiscoverableFeature> {
+
+  OverlayEntry activeFeatureOverlay;
+  VoidCallback onActivation;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    _InheritedFeatureDiscovery featureDiscovery = _InheritedFeatureDiscovery.of(context);
+    if (featureDiscovery.activeStep == widget.key) {
+      highlightFeature();
+    }
+  }
+
+  bool isDiscoveryDisplayed() {
+    return activeFeatureOverlay != null;
+  }
+
+  void onActivationComplete() {
+    activeFeatureOverlay.remove();
+    activeFeatureOverlay = null;
+
+    _log.fine('Activating the caller\'s desired action.');
+    if (null != widget.onPressed) {
+      widget.onPressed();
     }
 
-    final RenderBox targetBox = featureUiKey.currentContext.findRenderObject() as RenderBox;
+    _log.fine('Activating next step.');
+    FeatureDiscoveryStepper.of(context).markStepComplete(widget.key);
+  }
+
+  void onDismissComplete() {
+    activeFeatureOverlay.remove();
+    activeFeatureOverlay = null;
+
+    _log.fine('Cancelling remaining steps.');
+    FeatureDiscoveryStepper.of(context).cancelDiscovery();
+  }
+
+  Future<Null> highlightFeature() async {
+    if (null != activeFeatureOverlay) {
+      return;
+    }
+
+    final RenderBox targetBox = context.findRenderObject() as RenderBox;
     final targetTop = targetBox.localToGlobal(const Offset(0.0, 0.0)).dy;
     final targetBottom = targetBox.localToGlobal(const Offset(0.0, 0.0)).dy + targetBox.size.height;
     final targetCenter = targetBox.size.center(targetBox.localToGlobal(const Offset(0.0, 0.0)));
@@ -59,24 +222,22 @@ class _FeatureDiscoveryState extends State<FeatureDiscovery> with FeatureDiscove
     }
 
     final backgroundRadius = MediaQuery.of(context).size.width * (backgroundPosition == FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget
-      ? 1.0
-      : 0.75);
+        ? 1.0
+        : 0.75);
 
     activeFeatureOverlay = new OverlayEntry(
         builder: (BuildContext context) {
           return new FeatureDiscoveryOverlay(
-            targetKey: featureUiKey,
+            targetKey: widget.key,
             touchBaseRadius: 34.0,
             touchPulseWidth: 10.0,
             touchWaveWidth: 44.0,
             touchTargetColor: Colors.white,
             backgroundRadius: backgroundRadius,
-            backgroundColor: color,
+            backgroundColor: widget.color,
             backgroundPosition: backgroundPosition,
-            onClose: () {
-              activeFeatureOverlay.remove();
-              activeFeatureOverlay = null;
-            },
+            onDismissComplete: onDismissComplete,
+            onActivationComplete: onActivationComplete,
 
             content: new Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,7 +246,7 @@ class _FeatureDiscoveryState extends State<FeatureDiscovery> with FeatureDiscove
                 new Padding(
                   padding: const EdgeInsets.only(bottom: 16.0),
                   child: new Text(
-                    title,
+                    widget.title,
                     style: new TextStyle(
                       fontSize: 20.0,
                       color: Colors.white,
@@ -93,7 +254,7 @@ class _FeatureDiscoveryState extends State<FeatureDiscovery> with FeatureDiscove
                   ),
                 ),
                 new Text(
-                  description,
+                  widget.description,
                   style: new TextStyle(
                     fontSize: 16.0,
                     color: Colors.white.withOpacity(0.8),
@@ -103,17 +264,9 @@ class _FeatureDiscoveryState extends State<FeatureDiscovery> with FeatureDiscove
             ),
             contentPosition: contentPosition,
 
-            child: new RawMaterialButton(
-                shape: new CircleBorder(),
-                fillColor: Colors.white,
-                child: new Icon(
-                  targetIcon,
-                  color: Colors.grey,
-                ),
-                onPressed: () {
-                  // TODO:
-                  print('touched');
-                }
+            child: new Icon(
+              widget.icon,
+              color: Colors.grey,
             ),
           );
         }
@@ -123,20 +276,13 @@ class _FeatureDiscoveryState extends State<FeatureDiscovery> with FeatureDiscove
 
   @override
   Widget build(BuildContext context) {
-    return widget.child;
+    return widget.builder(context, widget.onPressed);
   }
 }
 
-abstract class FeatureDiscoveryController {
-  void highlightFeature({
-    @required GlobalKey featureUiKey,
-    @required IconData targetIcon,
-    @required Color color,
-    String title,
-    String description,
-  });
-}
+typedef Widget DiscoveryBuilder(BuildContext context, VoidCallback onPressed);
 
+/// Circular overlay on top of a feature's icon.
 class FeatureDiscoveryOverlay extends StatefulWidget {
 
   final GlobalKey targetKey;
@@ -150,7 +296,8 @@ class FeatureDiscoveryOverlay extends StatefulWidget {
   final Widget content;
   final FeatureDiscoveryContentPosition contentPosition;
   final FeatureDiscoveryBackgroundPosition backgroundPosition;
-  final Function onClose;
+  final Function onDismissComplete;
+  final Function onActivationComplete;
   final Widget child;
 
   FeatureDiscoveryOverlay({
@@ -165,7 +312,8 @@ class FeatureDiscoveryOverlay extends StatefulWidget {
     this.content,
     this.contentPosition = FeatureDiscoveryContentPosition.below,
     this.backgroundPosition = FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget,
-    this.onClose,
+    this.onDismissComplete,
+    this.onActivationComplete,
     this.child,
   });
 
@@ -176,36 +324,39 @@ class FeatureDiscoveryOverlay extends StatefulWidget {
 class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with TickerProviderStateMixin {
 
   AnimationController openController;
-  AnimationController closeController;
-  AnimationController dissipationController;
+  AnimationController dismissController;
+  AnimationController activationController;
 
   AnimationController pulseController;
 
   ProxyAnimation touchTargetRadius;
   Animation openTouchTargetRadius;
   Animation pulseTouchTargetRadius;
-  Animation closeTouchTargetRadius;
   Animation dismissTouchTargetRadius;
+  Animation activationTouchTargetRadius;
 
   ProxyAnimation touchTargetOpacity;
   Animation openTouchTargetOpacity;
-  Animation closeTouchTargetOpacity;
+  Animation dismissTouchTargetOpacity;
+  Animation activationTouchTargetOpacity;
 
   Animation waveRadius;
   Animation waveOpacity;
 
   ProxyAnimation contentOpacity;
   Animation openContentOpacity;
-  Animation closeContentOpacity;
+  Animation dismissContentOpacity;
+  Animation activationContentOpacity;
 
   ProxyAnimation backgroundRadius;
   Animation openBackgroundRadius;
-  Animation closeBackgroundRadius;
   Animation dismissBackgroundRadius;
+  Animation activationBackgroundRadius;
 
   ProxyAnimation backgroundOpacity;
   Animation openBackgroundOpacity;
-  Animation closeBackgroundOpacity;
+  Animation dismissBackgroundOpacity;
+  Animation activationBackgroundOpacity;
 
   Animation backgroundCenter;
 
@@ -216,8 +367,8 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
     _initCoreAnimations();
     _initOpenAnimations();
     _initPulseAnimations();
-    _initCloseAnimations();
     _initDismissAnimations();
+    _initActivationAnimations();
 
     _animateOpen();
   }
@@ -274,7 +425,7 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
       end: backgroundCenterStart,
     ).animate(
       new CurvedAnimation(
-        parent: closeController,
+        parent: dismissController,
         curve: Curves.easeOut,
       ),
     );
@@ -505,56 +656,56 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
     pulseController.forward();
   }
 
-  void _initCloseAnimations() {
-    closeController = new AnimationController(
+  void _initActivationAnimations() {
+    activationController = new AnimationController(
         duration: const Duration(milliseconds: 250),
         vsync: this
     )
       ..addListener(() => setState(() {}))
       ..addStatusListener((AnimationStatus status) {
         if (status == AnimationStatus.completed) {
-          if (widget.onClose != null) {
-            widget.onClose();
+          if (widget.onActivationComplete != null) {
+            widget.onActivationComplete();
           }
         }
       });
   }
 
-  void _animateClose() {
+  void _animateActivation() {
     if (pulseController.isAnimating) {
       pulseController.stop();
     }
 
-    closeTouchTargetRadius = new Tween(
+    activationTouchTargetRadius = new Tween(
       begin: touchTargetRadius.value,
       end: 0.0,
     ).animate(
       new CurvedAnimation(
-        parent: closeController,
+        parent: activationController,
         curve: Curves.easeOut,
       ),
     );
 
-    closeTouchTargetOpacity = new Tween(
+    activationTouchTargetOpacity = new Tween(
       begin: 1.0,
       end: 0.0,
     ).animate(
       new CurvedAnimation(
-        parent: closeController,
+        parent: activationController,
         curve: new Interval(
-          0.3,
+          0.6,
           1.0,
           curve: Curves.easeOut,
         ),
       ),
     );
 
-    closeContentOpacity = new Tween(
+    activationContentOpacity = new Tween(
       begin: 1.0,
       end: 0.0,
     ).animate(
       new CurvedAnimation(
-        parent: closeController,
+        parent: activationController,
         curve: new Interval(
           0.0,
           0.4,
@@ -563,22 +714,22 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
       ),
     );
 
-    closeBackgroundRadius = new Tween(
+    activationBackgroundRadius = new Tween(
       begin: widget.backgroundRadius,
-      end: 0.0,
+      end: widget.backgroundRadius + 40.0,
     ).animate(
       new CurvedAnimation(
-        parent: closeController,
+        parent: activationController,
         curve: Curves.easeOut,
       ),
     );
 
-    closeBackgroundOpacity = new Tween(
+    activationBackgroundOpacity = new Tween(
       begin: 1.0,
       end: 0.0,
     ).animate(
       new CurvedAnimation(
-        parent: closeController,
+        parent: activationController,
         curve: new Interval(
           0.3,
           1.0,
@@ -587,19 +738,106 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
       ),
     );
 
-    touchTargetRadius.parent = closeTouchTargetRadius;
-    touchTargetOpacity.parent = closeTouchTargetOpacity;
-    contentOpacity.parent = closeContentOpacity;
-    backgroundRadius.parent = closeBackgroundRadius;
-    backgroundOpacity.parent = closeBackgroundOpacity;
+    touchTargetRadius.parent = activationTouchTargetRadius;
+    touchTargetOpacity.parent = activationTouchTargetOpacity;
+    contentOpacity.parent = activationContentOpacity;
+    backgroundRadius.parent = activationBackgroundRadius;
+    backgroundOpacity.parent = activationBackgroundOpacity;
 
-    _animateBackgroundToClosedPosition();
-
-    closeController.forward();
+    activationController.forward();
   }
 
   void _initDismissAnimations() {
+    dismissController = new AnimationController(
+        duration: const Duration(milliseconds: 250),
+        vsync: this
+    )
+      ..addListener(() => setState(() {}))
+      ..addStatusListener((AnimationStatus status) {
+        if (status == AnimationStatus.completed) {
+          if (widget.onDismissComplete != null) {
+            widget.onDismissComplete();
+          }
+        }
+      });
+  }
 
+  void _animateDismiss() {
+    if (pulseController.isAnimating) {
+      pulseController.stop();
+    }
+
+    dismissTouchTargetRadius = new Tween(
+      begin: touchTargetRadius.value,
+      end: 0.0,
+    ).animate(
+      new CurvedAnimation(
+        parent: dismissController,
+        curve: Curves.easeOut,
+      ),
+    );
+
+    dismissTouchTargetOpacity = new Tween(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(
+      new CurvedAnimation(
+        parent: dismissController,
+        curve: new Interval(
+          0.3,
+          1.0,
+          curve: Curves.easeOut,
+        ),
+      ),
+    );
+
+    dismissContentOpacity = new Tween(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(
+      new CurvedAnimation(
+        parent: dismissController,
+        curve: new Interval(
+          0.0,
+          0.4,
+          curve: Curves.easeOut,
+        ),
+      ),
+    );
+
+    dismissBackgroundRadius = new Tween(
+      begin: widget.backgroundRadius,
+      end: 0.0,
+    ).animate(
+      new CurvedAnimation(
+        parent: dismissController,
+        curve: Curves.easeOut,
+      ),
+    );
+
+    dismissBackgroundOpacity = new Tween(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(
+      new CurvedAnimation(
+        parent: dismissController,
+        curve: new Interval(
+          0.3,
+          1.0,
+          curve: Curves.easeOut,
+        ),
+      ),
+    );
+
+    touchTargetRadius.parent = dismissTouchTargetRadius;
+    touchTargetOpacity.parent = dismissTouchTargetOpacity;
+    contentOpacity.parent = dismissContentOpacity;
+    backgroundRadius.parent = dismissBackgroundRadius;
+    backgroundOpacity.parent = dismissBackgroundOpacity;
+
+    _animateBackgroundToClosedPosition();
+
+    dismissController.forward();
   }
 
   Widget _buildBackgroundAboutTouchTargetCenter(Offset anchorCenter) {
@@ -646,9 +884,7 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
     final anchorCenter = anchorSize.center(anchorPosition);
 
     return new GestureDetector(
-      onTap: () {
-        _animateClose();
-      },
+      onTap: _animateDismiss,
       child: new Material(
         color: Colors.transparent,
         child: new Container(
@@ -721,7 +957,14 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
                             shape: BoxShape.circle,
                             color: widget.touchTargetColor,
                           ),
-                          child: widget.child,
+                          child: new RawMaterialButton(
+                              shape: new CircleBorder(),
+                              fillColor: Colors.white,
+                              child: widget.child,
+                              onPressed: () {
+                                _animateActivation();
+                              }
+                          ),
                         ),
                       ),
                     ],
@@ -736,51 +979,6 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
   }
 }
 
-class SerialAnimation extends Animation<double> {
-
-  final AnimationController controller;
-  final List<IntervalTween> tweens;
-
-  SerialAnimation({
-    @required this.controller,
-    @required this.tweens,
-  });
-
-  @override
-  void addListener(VoidCallback listener) {
-    controller.addListener(listener);
-  }
-
-  @override
-  void addStatusListener(AnimationStatusListener listener) {
-    controller.addStatusListener(listener);
-  }
-
-  @override
-  void removeListener(VoidCallback listener) {
-    controller.removeListener(listener);
-  }
-
-  @override
-  void removeStatusListener(AnimationStatusListener listener) {
-    controller.removeStatusListener(listener);
-  }
-
-  @override
-  AnimationStatus get status => controller.status;
-
-  @override
-  get value {
-    final time = controller.value;
-    for (IntervalTween tween in tweens) {
-      if (time <= tween.interval.end) {
-        return tween._intervaledTween.evaluate(controller);
-      }
-    }
-  }
-
-}
-
 enum FeatureDiscoveryContentPosition {
   above,
   below,
@@ -789,15 +987,4 @@ enum FeatureDiscoveryContentPosition {
 enum FeatureDiscoveryBackgroundPosition {
   centeredAboutTouchTarget,
   centeredOnScreen,
-}
-
-class IntervalTween {
-  final Tween tween;
-  final Interval interval;
-  final Animatable _intervaledTween;
-
-  IntervalTween({
-    @required this.tween,
-    @required this.interval,
-  }) : _intervaledTween = tween.chain(new CurveTween(curve: interval));
 }

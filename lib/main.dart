@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:overlays/feature_discovery.dart';
+import 'package:logging/logging.dart';
 
-void main() => runApp(new MyApp());
+void main() {
+  Logger.root.level = Level.ALL;
+  Logger.root.onRecord.listen((LogRecord rec) {
+    print('${rec.level.name}: ${rec.time}: ${rec.message}');
+  });
+
+  runApp(new MyApp());
+}
 
 class MyApp extends StatelessWidget {
   @override
@@ -11,7 +19,7 @@ class MyApp extends StatelessWidget {
       theme: new ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: new FeatureDiscovery(
+      home: new FeatureDiscoveryStepper(
         child: new MyHomePage()
       ),
     );
@@ -34,59 +42,62 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return new Scaffold(
       appBar: new AppBar(
-        leading: new IconButton(
-          icon: new Icon(
-            Icons.menu,
-            key: menuIcon,
-          ),
+        leading: new DescribedDiscoverableFeature(
+          key: menuIcon,
+          icon: Icons.menu,
+          title: 'Just how you want it',
+          description: 'Tap the icon to switch accounts, change settings & more.',
+          color: Colors.green.withOpacity(0.95),
           onPressed: () {
-            FeatureDiscovery
-              .of(context)
-              .highlightFeature(
-                featureUiKey: menuIcon,
-                targetIcon: Icons.menu,
-                color: Colors.green.withOpacity(0.95),
-                title: 'Just how you want it',
-                description: 'Tap the icon to switch accounts, change settings & more.',
-              );
+            // TODO:
+          },
+          builder: (BuildContext context, VoidCallback onPressed) {
+            return new IconButton(
+              icon: new Icon(
+                Icons.menu,
+              ),
+              onPressed: onPressed,
+            );
           },
         ),
         title: new Text(''),
         actions: <Widget>[
-          new IconButton(
-            icon: new Icon(
-              Icons.search,
-              key: searchIcon,
-            ),
+          new DescribedDiscoverableFeature(
+            key: searchIcon,
+            icon: Icons.search,
+            title: 'Search your compounds',
+            description: 'Tap the magnifying glass icon to quickly scan your compounds.',
+            color: Colors.green.withOpacity(0.95),
             onPressed: () {
-              FeatureDiscovery
-                .of(context)
-                .highlightFeature(
-                  featureUiKey: searchIcon,
-                  targetIcon: Icons.search,
-                  color: Colors.green.withOpacity(0.95),
-                  title: 'Search your compounds',
-                  description: 'Tap the magnifying glass icon to quickly scan your compounds.',
-                );
+              // TODO:
+            },
+            builder: (BuildContext context, VoidCallback onPressed) {
+              return new IconButton(
+                icon: new Icon(
+                  Icons.search,
+                ),
+                onPressed: onPressed,
+              );
             },
           )
         ],
       ),
-      floatingActionButton: new FloatingActionButton(
+      floatingActionButton: new DescribedDiscoverableFeature(
         key: fabKey,
-        child: new Icon(
-          Icons.add,
-        ),
+        icon: Icons.add,
+        title: 'Find the fastest route',
+        description: 'Get car, walking, cycling, or public transit directions to this place.',
+        color: Colors.blue.withOpacity(0.95),
         onPressed: () {
-          FeatureDiscovery
-            .of(context)
-            .highlightFeature(
-              featureUiKey: fabKey,
-              targetIcon: Icons.add,
-              color: Colors.blueAccent.withOpacity(0.95),
-              title: 'Find the fastest route',
-              description: 'Get car, walking, cycling, or public transit directions to this place.',
-            );
+          // TODO:
+        },
+        builder: (BuildContext context, VoidCallback onPressed) {
+          return new FloatingActionButton(
+            child: new Icon(
+              Icons.add,
+            ),
+            onPressed: onPressed,
+          );
         },
       ),
       body: new Stack(
@@ -131,6 +142,29 @@ class _MyHomePageState extends State<MyHomePage> {
                   ],
                 )
               ),
+              new Container(
+                width: double.infinity,
+                child: new Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: new RaisedButton(
+                    child: new Text(
+                      'Discover Features!',
+                    ),
+                    onPressed: () {
+                      // TODO: start steps
+
+                      FeatureDiscoveryStepper
+                        .of(context)
+                        .discoverFeatures([
+                          menuIcon,
+                          searchIcon,
+                          fabKey,
+                          contentAreaKey,
+                        ]);
+                    },
+                  ),
+                ),
+              ),
               new Expanded(
                 child: Container(
                   color: const Color(0xFFEEEEEE),
@@ -142,29 +176,30 @@ class _MyHomePageState extends State<MyHomePage> {
           new Positioned(
             right: 25.0,
             top: 200.0 - (56.0 / 2.0),
-            child: new Container(
+            child: new DescribedDiscoverableFeature(
               key: contentAreaKey,
-              width: 56.0,
-              height: 56.0,
-              child: new RawMaterialButton(
-                shape: new CircleBorder(),
-                fillColor: Colors.white,
-                child: new Icon(
-                  Icons.drive_eta,
-                  color: Colors.blue,
-                ),
-                onPressed: () {
-                  FeatureDiscovery
-                    .of(context)
-                    .highlightFeature(
-                      featureUiKey: contentAreaKey,
-                      targetIcon: Icons.drive_eta,
-                      color: Colors.blueAccent.withOpacity(0.95),
-                      title: 'Find the fastest route',
-                      description: 'Get car, walking, cycling, or public transit directions to this place.',
-                    );
-                },
-              ),
+              icon: Icons.drive_eta,
+              title: 'Find the fastest route',
+              description: 'Get car, walking, cycling or public transit directions to this place.',
+              color: Colors.blue,
+              onPressed: () {
+                // TODO:
+              },
+              builder: (BuildContext context, VoidCallback onPressed) {
+                return new Container(
+                  width: 56.0,
+                  height: 56.0,
+                  child: new RawMaterialButton(
+                    shape: new CircleBorder(),
+                    fillColor: Colors.white,
+                    child: new Icon(
+                      Icons.drive_eta,
+                      color: Colors.blue,
+                    ),
+                    onPressed: onPressed,
+                  ),
+                );
+              },
             ),
           ),
         ],
