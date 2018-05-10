@@ -167,77 +167,89 @@ class _DescribedDiscoverableFeatureState extends State<DescribedDiscoverableFeat
     }
   }
 
-  Widget buildOverlay(BuildContext context) {
-    final RenderBox targetBox = context.findRenderObject() as RenderBox;
-    final targetTop = targetBox.localToGlobal(const Offset(0.0, 0.0)).dy;
-    final targetBottom = targetBox.localToGlobal(const Offset(0.0, 0.0)).dy + targetBox.size.height;
-    final targetCenter = targetBox.size.center(targetBox.localToGlobal(const Offset(0.0, 0.0)));
+  Widget buildTextContent() {
+    return new Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        new Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: new Text(
+            widget.title,
+            style: new TextStyle(
+              fontSize: 20.0,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        new Text(
+          widget.description,
+          style: new TextStyle(
+            fontSize: 16.0,
+            color: Colors.white.withOpacity(0.8),
+          ),
+        ),
+      ],
+    );
+  }
 
+  Widget buildOverlay(BuildContext context, Offset anchor) {
     FeatureDiscoveryContentPosition contentPosition;
     FeatureDiscoveryBackgroundPosition backgroundPosition;
-    if (targetTop < 88.0) {
+
+    if (anchor.dy < 88.0) {
+      // If within 88 units of top, content position is "below" and the overlay
+      // is centered about the touch target.
+
       contentPosition = FeatureDiscoveryContentPosition.below;
       backgroundPosition = FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget;
-    } else if ((MediaQuery.of(context).size.height - targetBottom) < 88.0) {
+    } else if ((MediaQuery.of(context).size.height - anchor.dy) < 88.0) {
+      // If within 88 units of bottom, content position is "above" and the
+      // overlay is centered about the touch target.
+
       contentPosition = FeatureDiscoveryContentPosition.above;
       backgroundPosition = FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget;
     } else {
-      if (targetCenter.dy < (MediaQuery.of(context).size.height / 2.0)) {
+      // If not within 88 units of top or bottom, then content position is
+      // assigned "above" if we're closer to top, and "below" if we're close to
+      // bottom.
+      if (anchor.dy < (MediaQuery.of(context).size.height / 2.0)) {
         contentPosition = FeatureDiscoveryContentPosition.above;
       } else {
         contentPosition = FeatureDiscoveryContentPosition.below;
       }
 
+      // If not within 88 units of top or bottom, background is centered on
+      // screen.
       backgroundPosition = FeatureDiscoveryBackgroundPosition.centeredOnScreen;
     }
 
-    final backgroundRadius = MediaQuery.of(context).size.width * (backgroundPosition == FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget
-        ? 1.0
-        : 0.75);
-
-    final RenderBox anchorBox = context.findRenderObject() as RenderBox;
-    final anchorSize = anchorBox.size;
-    final anchorPosition = anchorBox.localToGlobal(const Offset(0.0, 0.0));
-    final anchorCenter = anchorSize.center(anchorPosition);
+    // If background is centered about touch point then the background radius
+    // is equal to screen width. Otherwise, if background is centered on the
+    // screen then the background radius is set to 75% of screen width.
+    final isBackgroundCenteredOnScreen = backgroundPosition == FeatureDiscoveryBackgroundPosition.centeredOnScreen;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final backgroundRadius = screenWidth * (isBackgroundCenteredOnScreen ? 0.75 : 1.0);
 
     return new _FeatureDiscoveryOverlay(
-      targetKey: widget.key,
-      anchorCenter: anchorCenter,
+      // Overlay constraint information.
+      anchorCenter: anchor,
       screenSize: MediaQuery.of(context).size,
+
+      // Overlay visual configuration.
+      backgroundRadius: backgroundRadius,
+      backgroundColor: widget.color,
+      backgroundPosition: backgroundPosition,
       touchBaseRadius: 34.0,
       touchPulseWidth: 10.0,
       touchWaveWidth: 44.0,
       touchTargetColor: Colors.white,
-      backgroundRadius: backgroundRadius,
-      backgroundColor: widget.color,
-      backgroundPosition: backgroundPosition,
+      content: buildTextContent(),
+      contentPosition: contentPosition,
+
+      // Callbacks from overlay interaction.
       onDismissComplete: onDismissComplete,
       onActivationComplete: onActivationComplete,
-
-      content: new Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          new Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: new Text(
-              widget.title,
-              style: new TextStyle(
-                fontSize: 20.0,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          new Text(
-            widget.description,
-            style: new TextStyle(
-              fontSize: 16.0,
-              color: Colors.white.withOpacity(0.8),
-            ),
-          ),
-        ],
-      ),
-      contentPosition: contentPosition,
 
       child: new Icon(
         widget.icon,
@@ -267,11 +279,17 @@ class _DescribedDiscoverableFeatureState extends State<DescribedDiscoverableFeat
 
   @override
   Widget build(BuildContext context) {
-    return OverlayBuilder(
-      show: showFeatureHighlight,
-      overlayBuilder: (BuildContext overlayContext) {
-        return buildOverlay(context);
+    return OverlayAnchor(
+      showOverlay: showFeatureHighlight,
+
+      // Build the feature discovery overlay.
+      overlayBuilder: (BuildContext overlayContext, Offset anchor) {
+        return buildOverlay(context, anchor);
       },
+
+      // Show the normal UI (like an icon) as our child. When there is no overlay
+      // then this child is all you see. When the overlay is visible then it
+      // covers this child and is centered on top of it.
       child: widget.builder(context, widget.onPressed),
     );
   }
@@ -281,37 +299,42 @@ typedef Widget DiscoveryBuilder(BuildContext context, VoidCallback onPressed);
 
 class _FeatureDiscoveryOverlay extends StatefulWidget {
 
-  final GlobalKey targetKey;
+  // Constraints
   final Offset anchorCenter;
   final Size screenSize;
-  final double touchBaseRadius;
-  final double touchPulseWidth;
-  final double touchWaveWidth;
-  final Color touchTargetColor;
+
+  // Visual configuration
+  final FeatureDiscoveryBackgroundPosition backgroundPosition;
   final double backgroundRadius;
   final double backgroundRadiateWidth;
   final Color backgroundColor;
-  final Widget content;
+  final double touchBaseRadius;
+  final double touchPulseWidth;
+  final Color touchTargetColor;
+  final double touchWaveWidth;
   final FeatureDiscoveryContentPosition contentPosition;
-  final FeatureDiscoveryBackgroundPosition backgroundPosition;
+  final Widget content;
+
+  // Interaction callbacks
   final Function onDismissComplete;
   final Function onActivationComplete;
+
+  // Pass-through child
   final Widget child;
 
   _FeatureDiscoveryOverlay({
-    this.targetKey,
     this.anchorCenter,
     this.screenSize,
-    this.touchBaseRadius,
-    this.touchPulseWidth,
-    this.touchWaveWidth = 10.0,
-    this.touchTargetColor,
+    this.backgroundPosition = FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget,
     this.backgroundRadius,
     this.backgroundRadiateWidth,
     this.backgroundColor,
-    this.content,
+    this.touchBaseRadius,
+    this.touchPulseWidth,
+    this.touchTargetColor,
+    this.touchWaveWidth = 10.0,
     this.contentPosition = FeatureDiscoveryContentPosition.below,
-    this.backgroundPosition = FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget,
+    this.content,
     this.onDismissComplete,
     this.onActivationComplete,
     this.child,
@@ -342,20 +365,28 @@ class _FeatureDiscoveryOverlayState extends State<_FeatureDiscoveryOverlay> with
   }
 
   void _createOverlayConfig() {
-    final screenWidth = widget.screenSize.width;
-    final isTouchTargetOnRight = widget.anchorCenter.dx > (screenWidth / 2.0);
-    final backgroundX = (screenWidth / 2.0) + (isTouchTargetOnRight ? 20.0 : -20.0);
-    final isContentAboveTarget = widget.contentPosition == FeatureDiscoveryContentPosition.above;
-    final backgroundY = widget.anchorCenter.dy +
-        (isContentAboveTarget
-            ? -(screenWidth / 2.0) + 40.0
-            : (screenWidth / 2.0) - 40.0
-        );
     final Offset backgroundCenterStart = widget.anchorCenter;
-    final Offset backgroundCenterEnd = widget.backgroundPosition == FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget
-        ? backgroundCenterStart
-        : new Offset(backgroundX, backgroundY);
+    Offset backgroundCenterEnd = backgroundCenterStart;
 
+    // If the background is centered on screen then the background center needs
+    // to be different than the starting center. The end center needs to be
+    // near the horizontal center of the screen.
+    if (widget.backgroundPosition == FeatureDiscoveryBackgroundPosition.centeredOnScreen) {
+      final screenWidth = widget.screenSize.width;
+      final isTouchTargetOnRight = widget.anchorCenter.dx > (screenWidth / 2.0);
+      final isContentAboveTarget = widget.contentPosition == FeatureDiscoveryContentPosition.above;
+
+      final backgroundX = (screenWidth / 2.0) + (isTouchTargetOnRight ? 20.0 : -20.0);
+      final backgroundY = widget.anchorCenter.dy +
+          (isContentAboveTarget
+              ? -(screenWidth / 2.0) + 40.0
+              : (screenWidth / 2.0) - 40.0
+          );
+
+      backgroundCenterEnd = new Offset(backgroundX, backgroundY);
+    }
+
+    // Create desired visual configuration for our overlay (location, size, etc.)
     overlayConfig = new OverlayConfig(
       backgroundCenterStart: backgroundCenterStart,
       backgroundCenterEnd: backgroundCenterEnd,
@@ -466,7 +497,7 @@ class _FeatureDiscoveryOverlayState extends State<_FeatureDiscoveryOverlay> with
   }
 
   Widget _buildBackground(Offset anchorCenter) {
-    return new CenteredAbout(
+    return new CenteredAboutPosition(
       position: overlayViewModel.backgroundCenter,
       child: _buildBackgroundCircle(overlayViewModel.backgroundRadius),
     );
@@ -526,7 +557,7 @@ class _FeatureDiscoveryOverlayState extends State<_FeatureDiscoveryOverlay> with
     final buttonRadius = overlayViewModel.touchTargetRadius;
     final buttonOpacity = overlayViewModel.touchTargetOpacity;
 
-    return new CenteredAbout(
+    return new CenteredAboutPosition(
       position: anchorCenter,
       child: new Stack(
         alignment: Alignment.center,

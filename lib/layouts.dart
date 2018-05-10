@@ -1,12 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 
-class CenteredAbout extends StatelessWidget {
+class CenteredAboutPosition extends StatelessWidget {
 
   final Offset position;
   final Widget child;
 
-  CenteredAbout({
+  CenteredAboutPosition({
     this.position,
     this.child,
   });
@@ -64,11 +64,15 @@ class _OverlayBuilderState extends State<OverlayBuilder> {
     }
   }
 
-  void createOverlay() async {
+  void createOverlay() {
     overlayEntry = new OverlayEntry(
       builder: widget.overlayBuilder,
     );
-    Overlay.of(context).insert(overlayEntry);
+    addToOverlay(overlayEntry);
+  }
+
+  void addToOverlay(OverlayEntry entry) async {
+    Overlay.of(context).insert(entry);
   }
 
   void destroyOverlay() {
@@ -81,4 +85,48 @@ class _OverlayBuilderState extends State<OverlayBuilder> {
     return widget.child;
   }
 
+}
+
+/// Displays the provided [centeredOverlay] centered above the parent of this
+/// Widget.
+class OverlayAnchor extends StatefulWidget {
+
+  final bool showOverlay;
+  final Function(BuildContext, Offset anchor) overlayBuilder;
+  final Widget child;
+
+  OverlayAnchor({
+    this.showOverlay = false,
+    this.overlayBuilder,
+    this.child,
+  });
+
+  @override
+  _OverlayAnchorState createState() => new _OverlayAnchorState();
+}
+
+class _OverlayAnchorState extends State<OverlayAnchor> {
+  @override
+  Widget build(BuildContext context) {
+    return new Container( // Container is used to shrink down to size of child.
+      child: new LayoutBuilder( // LayoutBuilder gives us a chance to act on the Container's dimensions
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return new OverlayBuilder(
+            show: widget.showOverlay,
+
+            // The overlay that can appear centered on top of our provided content.
+            overlayBuilder: (BuildContext overlayContext) {
+              final RenderBox targetBox = context.findRenderObject() as RenderBox;
+              final center = targetBox.size.center(targetBox.localToGlobal(const Offset(0.0, 0.0)));
+
+              return widget.overlayBuilder(overlayContext, center);
+            },
+
+            // The UI that the caller actually wants on screen.
+            child: widget.child,
+          );
+        },
+      ),
+    );
+  }
 }
