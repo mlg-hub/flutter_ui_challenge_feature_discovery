@@ -23,37 +23,61 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
-    return new Scaffold(
-      appBar: new AppBar(
-        leading: new IconButton(
-          icon: new Icon(
-            Icons.menu,
-          ),
-          onPressed: () {
-            // TODO:
-          }
-        ),
-        title: new Text(''),
-        actions: <Widget>[
-          new IconButton(
+    return new Stack(
+      children: <Widget>[
+        new Scaffold(
+          appBar: new AppBar(
+            leading: new IconButton(
               icon: new Icon(
-                Icons.search,
+                Icons.menu,
               ),
               onPressed: () {
                 // TODO:
               }
+            ),
+            title: new Text(''),
+            actions: <Widget>[
+              new IconButton(
+                  icon: new Icon(
+                    Icons.search,
+                  ),
+                  onPressed: () {
+                    // TODO:
+                  }
+              ),
+            ],
           ),
-        ],
-      ),
-      body: new Content(),
-      floatingActionButton: new FloatingActionButton(
-        child: new Icon(
-          Icons.add,
+          body: new Content(),
+          floatingActionButton: new FloatingActionButton(
+            child: new Icon(
+              Icons.add,
+            ),
+            onPressed: () {
+              // TODO:
+            },
+          ),
         ),
-        onPressed: () {
-          // TODO:
-        },
-      ),
+
+        // Reference rectangle
+        new Container(
+          width: 250.0,
+          height: 450.0,
+          color: Colors.green,
+        ),
+
+        // Positioned rectangle
+        new CenterAbout(
+          position: const Offset(250.0, 450.0),
+          child: new Container(
+            width: 50.0,
+            height: 50.0,
+            decoration: new BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.red,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -139,6 +163,30 @@ class _ContentState extends State<Content> {
           ),
         ),
       ],
+    );
+  }
+}
+
+
+class CenterAbout extends StatelessWidget {
+
+  final Offset position;
+  final Widget child;
+
+  CenterAbout({
+    this.position,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return new Positioned(
+      left: position.dx,
+      top: position.dy,
+      child: new FractionalTranslation(
+        translation: const Offset(-0.5, -0.5),
+        child: child,
+      ),
     );
   }
 }
