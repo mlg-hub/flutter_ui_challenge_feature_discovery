@@ -1,8 +1,8 @@
-import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
-import 'package:overlays/animations.dart';
+import 'package:overlays/layouts.dart';
 
 final Logger _log = new Logger('feature_discovery');
 
@@ -13,7 +13,7 @@ final Logger _log = new Logger('feature_discovery');
 /// discoverable features, possibly in order as the user taps on things. Those
 /// discoverable features are represented by lower Widgets in the tree like
 /// [DescribedDiscoverableFeature] and [PulsingDiscoverableFeature].
-class FeatureDiscoveryStepper extends StatefulWidget {
+class FeatureDiscovery extends StatefulWidget {
 
   static FeatureDiscoveryController of(BuildContext context) {
     _log.fine('FeatureDiscoveryController: ${context.ancestorStateOfType(new TypeMatcher<_FeatureDiscoveryState>())}');
@@ -24,7 +24,7 @@ class FeatureDiscoveryStepper extends StatefulWidget {
 
   final Widget child;
 
-  FeatureDiscoveryStepper({
+  FeatureDiscovery({
     this.child,
   });
 
@@ -32,9 +32,8 @@ class FeatureDiscoveryStepper extends StatefulWidget {
   _FeatureDiscoveryState createState() => new _FeatureDiscoveryState();
 }
 
-class _FeatureDiscoveryState extends State<FeatureDiscoveryStepper> with FeatureDiscoveryController {
+class _FeatureDiscoveryState extends State<FeatureDiscovery> with FeatureDiscoveryController {
 
-//  OverlayEntry activeFeatureOverlay;
   List<GlobalKey> _activeSteps;
   int _activeStepIndex;
 
@@ -126,7 +125,7 @@ abstract class FeatureDiscoveryController {
 
 /// A feature that can be discovered.
 ///
-/// When an ancestor DescribedDiscoverableFeature Widget sets its active step to
+/// When an ancestor FeatureDiscovery Widget sets its active step to
 /// this one, this DescribedDiscoverableFeature will emit a radial background,
 /// display a title and description, and show a pulsing icon on top of the
 /// [child] Widget given to this DescribedDiscoverableFeature.
@@ -155,7 +154,7 @@ class DescribedDiscoverableFeature extends StatefulWidget {
 
 class _DescribedDiscoverableFeatureState extends State<DescribedDiscoverableFeature> {
 
-  OverlayEntry activeFeatureOverlay;
+  bool showFeatureHighlight = false;
   VoidCallback onActivation;
 
   @override
@@ -164,40 +163,11 @@ class _DescribedDiscoverableFeatureState extends State<DescribedDiscoverableFeat
 
     _InheritedFeatureDiscovery featureDiscovery = _InheritedFeatureDiscovery.of(context);
     if (featureDiscovery.activeStep == widget.key) {
-      highlightFeature();
+      setState(() => showFeatureHighlight = true);
     }
   }
 
-  bool isDiscoveryDisplayed() {
-    return activeFeatureOverlay != null;
-  }
-
-  void onActivationComplete() {
-    activeFeatureOverlay.remove();
-    activeFeatureOverlay = null;
-
-    _log.fine('Activating the caller\'s desired action.');
-    if (null != widget.onPressed) {
-      widget.onPressed();
-    }
-
-    _log.fine('Activating next step.');
-    FeatureDiscoveryStepper.of(context).markStepComplete(widget.key);
-  }
-
-  void onDismissComplete() {
-    activeFeatureOverlay.remove();
-    activeFeatureOverlay = null;
-
-    _log.fine('Cancelling remaining steps.');
-    FeatureDiscoveryStepper.of(context).cancelDiscovery();
-  }
-
-  Future<Null> highlightFeature() async {
-    if (null != activeFeatureOverlay) {
-      return;
-    }
-
+  Widget buildOverlay(BuildContext context) {
     final RenderBox targetBox = context.findRenderObject() as RenderBox;
     final targetTop = targetBox.localToGlobal(const Offset(0.0, 0.0)).dy;
     final targetBottom = targetBox.localToGlobal(const Offset(0.0, 0.0)).dy + targetBox.size.height;
@@ -225,67 +195,95 @@ class _DescribedDiscoverableFeatureState extends State<DescribedDiscoverableFeat
         ? 1.0
         : 0.75);
 
-    activeFeatureOverlay = new OverlayEntry(
-        builder: (BuildContext context) {
-          return new FeatureDiscoveryOverlay(
-            targetKey: widget.key,
-            touchBaseRadius: 34.0,
-            touchPulseWidth: 10.0,
-            touchWaveWidth: 44.0,
-            touchTargetColor: Colors.white,
-            backgroundRadius: backgroundRadius,
-            backgroundColor: widget.color,
-            backgroundPosition: backgroundPosition,
-            onDismissComplete: onDismissComplete,
-            onActivationComplete: onActivationComplete,
+    final RenderBox anchorBox = context.findRenderObject() as RenderBox;
+    final anchorSize = anchorBox.size;
+    final anchorPosition = anchorBox.localToGlobal(const Offset(0.0, 0.0));
+    final anchorCenter = anchorSize.center(anchorPosition);
 
-            content: new Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                new Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: new Text(
-                    widget.title,
-                    style: new TextStyle(
-                      fontSize: 20.0,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                new Text(
-                  widget.description,
-                  style: new TextStyle(
-                    fontSize: 16.0,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
-                ),
-              ],
-            ),
-            contentPosition: contentPosition,
+    return new _FeatureDiscoveryOverlay(
+      targetKey: widget.key,
+      anchorCenter: anchorCenter,
+      screenSize: MediaQuery.of(context).size,
+      touchBaseRadius: 34.0,
+      touchPulseWidth: 10.0,
+      touchWaveWidth: 44.0,
+      touchTargetColor: Colors.white,
+      backgroundRadius: backgroundRadius,
+      backgroundColor: widget.color,
+      backgroundPosition: backgroundPosition,
+      onDismissComplete: onDismissComplete,
+      onActivationComplete: onActivationComplete,
 
-            child: new Icon(
-              widget.icon,
-              color: Colors.grey,
+      content: new Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          new Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: new Text(
+              widget.title,
+              style: new TextStyle(
+                fontSize: 20.0,
+                color: Colors.white,
+              ),
             ),
-          );
-        }
+          ),
+          new Text(
+            widget.description,
+            style: new TextStyle(
+              fontSize: 16.0,
+              color: Colors.white.withOpacity(0.8),
+            ),
+          ),
+        ],
+      ),
+      contentPosition: contentPosition,
+
+      child: new Icon(
+        widget.icon,
+        color: Colors.grey,
+      ),
     );
-    Overlay.of(context).insert(activeFeatureOverlay);
+  }
+
+  void onActivationComplete() {
+    setState(() => showFeatureHighlight = false);
+
+    _log.fine('Activating the caller\'s desired action.');
+    if (null != widget.onPressed) {
+      widget.onPressed();
+    }
+
+    _log.fine('Activating next step.');
+    FeatureDiscovery.of(context).markStepComplete(widget.key);
+  }
+
+  void onDismissComplete() {
+    setState(() => showFeatureHighlight = false);
+
+    _log.fine('Cancelling remaining steps.');
+    FeatureDiscovery.of(context).cancelDiscovery();
   }
 
   @override
   Widget build(BuildContext context) {
-    return widget.builder(context, widget.onPressed);
+    return OverlayBuilder(
+      show: showFeatureHighlight,
+      overlayBuilder: (BuildContext overlayContext) {
+        return buildOverlay(context);
+      },
+      child: widget.builder(context, widget.onPressed),
+    );
   }
 }
 
 typedef Widget DiscoveryBuilder(BuildContext context, VoidCallback onPressed);
 
-/// Circular overlay on top of a feature's icon.
-class FeatureDiscoveryOverlay extends StatefulWidget {
+class _FeatureDiscoveryOverlay extends StatefulWidget {
 
   final GlobalKey targetKey;
+  final Offset anchorCenter;
+  final Size screenSize;
   final double touchBaseRadius;
   final double touchPulseWidth;
   final double touchWaveWidth;
@@ -300,8 +298,10 @@ class FeatureDiscoveryOverlay extends StatefulWidget {
   final Function onActivationComplete;
   final Widget child;
 
-  FeatureDiscoveryOverlay({
+  _FeatureDiscoveryOverlay({
     this.targetKey,
+    this.anchorCenter,
+    this.screenSize,
     this.touchBaseRadius,
     this.touchPulseWidth,
     this.touchWaveWidth = 10.0,
@@ -321,440 +321,119 @@ class FeatureDiscoveryOverlay extends StatefulWidget {
   _FeatureDiscoveryOverlayState createState() => new _FeatureDiscoveryOverlayState();
 }
 
-class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with TickerProviderStateMixin {
+class _FeatureDiscoveryOverlayState extends State<_FeatureDiscoveryOverlay> with TickerProviderStateMixin {
 
   AnimationController openController;
+  AnimationController pulseController;
   AnimationController dismissController;
   AnimationController activationController;
 
-  AnimationController pulseController;
-
-  ProxyAnimation touchTargetRadius;
-  Animation openTouchTargetRadius;
-  Animation pulseTouchTargetRadius;
-  Animation dismissTouchTargetRadius;
-  Animation activationTouchTargetRadius;
-
-  ProxyAnimation touchTargetOpacity;
-  Animation openTouchTargetOpacity;
-  Animation dismissTouchTargetOpacity;
-  Animation activationTouchTargetOpacity;
-
-  Animation waveRadius;
-  Animation waveOpacity;
-
-  ProxyAnimation contentOpacity;
-  Animation openContentOpacity;
-  Animation dismissContentOpacity;
-  Animation activationContentOpacity;
-
-  ProxyAnimation backgroundRadius;
-  Animation openBackgroundRadius;
-  Animation dismissBackgroundRadius;
-  Animation activationBackgroundRadius;
-
-  ProxyAnimation backgroundOpacity;
-  Animation openBackgroundOpacity;
-  Animation dismissBackgroundOpacity;
-  Animation activationBackgroundOpacity;
-
-  Animation backgroundCenter;
+  OverlayViewModel overlayViewModel;
+  OverlayConfig overlayConfig;
 
   @override
   void initState() {
     super.initState();
 
-    _initCoreAnimations();
-    _initOpenAnimations();
-    _initPulseAnimations();
-    _initDismissAnimations();
-    _initActivationAnimations();
+    _createOverlayConfig();
+    _initAnimationControllers();
 
-    _animateOpen();
+    _open();
   }
 
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    if (backgroundCenter == null) {
-      _animateBackgroundToOpenPosition();
-    }
-  }
-
-  void _animateBackgroundToOpenPosition() {
-    final RenderBox targetBox = widget.targetKey.currentContext.findRenderObject() as RenderBox;
-    final targetCenter = targetBox.size.center(targetBox.localToGlobal(const Offset(0.0, 0.0)));
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    final isTouchTargetOnRight = targetCenter.dx > (screenWidth / 2.0);
+  void _createOverlayConfig() {
+    final screenWidth = widget.screenSize.width;
+    final isTouchTargetOnRight = widget.anchorCenter.dx > (screenWidth / 2.0);
     final backgroundX = (screenWidth / 2.0) + (isTouchTargetOnRight ? 20.0 : -20.0);
-
     final isContentAboveTarget = widget.contentPosition == FeatureDiscoveryContentPosition.above;
-    print('isContentAboveTarget: $isContentAboveTarget');
-    final backgroundY = targetCenter.dy +
+    final backgroundY = widget.anchorCenter.dy +
         (isContentAboveTarget
             ? -(screenWidth / 2.0) + 40.0
             : (screenWidth / 2.0) - 40.0
         );
+    final Offset backgroundCenterStart = widget.anchorCenter;
+    final Offset backgroundCenterEnd = widget.backgroundPosition == FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget
+        ? backgroundCenterStart
+        : new Offset(backgroundX, backgroundY);
 
-    final Offset backgroundCenterStart = targetCenter;
-    final Offset backgroundCenterEnd = new Offset(backgroundX, backgroundY);
-    backgroundCenter = new Tween(
-      begin: backgroundCenterStart,
-      end: backgroundCenterEnd,
-    ).animate(
-      new CurvedAnimation(
-        parent: openController,
-        curve: Curves.easeOut,
-      ),
+    overlayConfig = new OverlayConfig(
+      backgroundCenterStart: backgroundCenterStart,
+      backgroundCenterEnd: backgroundCenterEnd,
+      openBackgroundRadius: widget.backgroundRadius,
+      maxPulseRadius: widget.touchBaseRadius + widget.touchWaveWidth,
+      maxPulseOpacity: 0.5,
+      openBaseTouchTargetRadius: widget.touchBaseRadius,
+      openMaxTouchTargetRadius: widget.touchBaseRadius + widget.touchPulseWidth,
     );
   }
 
-  void _animateBackgroundToClosedPosition() {
-    final RenderBox targetBox = widget.targetKey.currentContext.findRenderObject() as RenderBox;
-    final targetCenter = targetBox.size.center(targetBox.localToGlobal(const Offset(0.0, 0.0)));
-    print('targetBox size. Width: ${targetBox.size.width}, Height: ${targetBox.size.height}');
-    print('targetBox center: $targetCenter');
-    print('screen size. Width: ${MediaQuery.of(context).size.width}, Height: ${MediaQuery.of(context).size.height}');
-
-    final Offset backgroundCenterStart = targetCenter;
-    backgroundCenter = new Tween(
-      begin: backgroundCenter.value,
-      end: backgroundCenterStart,
-    ).animate(
-      new CurvedAnimation(
-        parent: dismissController,
-        curve: Curves.easeOut,
-      ),
-    );
-  }
-
-  void _initCoreAnimations() {
-    touchTargetRadius = new ProxyAnimation();
-    touchTargetOpacity = new ProxyAnimation();
-    contentOpacity = new ProxyAnimation();
-    backgroundRadius = new ProxyAnimation();
-    backgroundOpacity = new ProxyAnimation();
-  }
-
-  void _initOpenAnimations() {
+  void _initAnimationControllers() {
     openController = new AnimationController(
         duration: const Duration(milliseconds: 250),
         vsync: this
     )
-      ..addListener(() => setState(() {}))
+      ..addListener(() => setState(() {
+        overlayViewModel = OverlayViewModel.opening(overlayConfig, openController.value);
+      }))
       ..addStatusListener((AnimationStatus status) {
-        if (status == AnimationStatus.completed) {
-          _animatePulse();
+        if (status == AnimationStatus.forward) {
+          setState(() {
+            overlayViewModel = OverlayViewModel.opening(overlayConfig, openController.value);
+          });
+        } else if (status == AnimationStatus.completed) {
+          _pulse();
         }
       });
 
-    openTouchTargetRadius = new Tween(
-      begin: 0.0,
-      end: widget.touchBaseRadius,
-    ).animate(
-      new CurvedAnimation(
-        parent: openController,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    openTouchTargetOpacity = new Tween(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: openController,
-        curve: new Interval(
-          0.0,
-          0.3,
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-
-    openContentOpacity = new Tween(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: openController,
-        curve: new Interval(
-          0.4,
-          1.0,
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-
-    openBackgroundRadius = new Tween(
-      begin: 0.0,
-      end: widget.backgroundRadius,
-    ).animate(
-      new CurvedAnimation(
-        parent: openController,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    openBackgroundOpacity = new Tween(
-      begin: 1.0,
-      end: 1.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: openController,
-        curve: new Interval(
-          0.0,
-          0.3,
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-  }
-
-  void _animateOpen() {
-    touchTargetRadius.parent = openTouchTargetRadius;
-    touchTargetOpacity.parent = openTouchTargetOpacity;
-    contentOpacity.parent = openContentOpacity;
-    backgroundRadius.parent = openBackgroundRadius;
-    backgroundOpacity.parent = openBackgroundOpacity;
-    openController.forward();
-  }
-
-  void _initPulseAnimations() {
     pulseController = new AnimationController(
         duration: const Duration(milliseconds: 1000),
         vsync: this
     )
-      ..addListener(() => setState(() {}))
+      ..addListener(() => setState(() {
+        overlayViewModel = OverlayViewModel.pulsing(overlayConfig, pulseController.value);
+      }))
       ..addStatusListener((AnimationStatus status) {
-        if (status == AnimationStatus.completed) {
+        if (status == AnimationStatus.forward) {
+          setState(() {
+            overlayViewModel = OverlayViewModel.pulsing(overlayConfig, pulseController.value);
+          });
+        } else if (status == AnimationStatus.completed) {
           pulseController.forward(from: 0.0);
         }
       });
 
-    pulseTouchTargetRadius = new SerialAnimation(
-        tweens: [
-          // Expand
-          new IntervalTween(
-            tween: new Tween<double>(
-              begin: widget.touchBaseRadius,
-              end: widget.touchBaseRadius + widget.touchPulseWidth,
-            ),
-            interval: new Interval(
-              0.0,
-              0.3,
-              curve: Curves.easeOut,
-            ),
-          ),
-
-          // Contract
-          new IntervalTween(
-            tween: new Tween<double>(
-              begin: widget.touchBaseRadius + widget.touchPulseWidth,
-              end: widget.touchBaseRadius,
-            ),
-            interval: new Interval(
-              0.3,
-              0.6,
-              curve: Curves.easeOut,
-            ),
-          ),
-
-          // Sit still
-          new IntervalTween(
-            tween: new Tween<double>(
-              begin: widget.touchBaseRadius,
-              end: widget.touchBaseRadius,
-            ),
-            interval: new Interval(
-              0.6,
-              1.0,
-            ),
-          ),
-        ],
-        controller: pulseController
-    );
-
-    waveRadius = new SerialAnimation(
-      tweens: [
-        new IntervalTween(
-          tween: new Tween<double>(
-            begin: 0.0,
-            end: 0.0,
-          ),
-          interval: new Interval(
-            0.0,
-            0.3,
-          ),
-        ),
-        new IntervalTween(
-          tween: new Tween<double>(
-            begin: widget.touchBaseRadius + widget.touchPulseWidth,
-            end: widget.touchBaseRadius + widget.touchWaveWidth,
-          ),
-          interval: new Interval(
-            0.3,
-            0.8,
-          ),
-        ),
-        new IntervalTween(
-          tween: new Tween<double>(
-            begin: 0.0,
-            end: 0.0,
-          ),
-          interval: new Interval(
-            0.8,
-            1.0,
-          ),
-        ),
-      ],
-      controller: pulseController,
-    );
-
-    waveOpacity = new SerialAnimation(
-      tweens: [
-        new IntervalTween(
-          tween: new Tween<double>(
-            begin: 0.0,
-            end: 0.0,
-          ),
-          interval: new Interval(
-            0.0,
-            0.3,
-          ),
-        ),
-        new IntervalTween(
-          tween: new Tween<double>(
-            begin: 0.5,
-            end: 0.0,
-          ),
-          interval: new Interval(
-            0.3,
-            0.7,
-          ),
-        ),
-        new IntervalTween(
-          tween: new Tween<double>(
-            begin: 0.0,
-            end: 0.0,
-          ),
-          interval: new Interval(
-            0.7,
-            1.0,
-          ),
-        ),
-      ],
-      controller: pulseController,
-    );
-  }
-
-  void _animatePulse() {
-    touchTargetRadius.parent = pulseTouchTargetRadius;
-    pulseController.forward();
-  }
-
-  void _initActivationAnimations() {
     activationController = new AnimationController(
         duration: const Duration(milliseconds: 250),
         vsync: this
     )
-      ..addListener(() => setState(() {}))
+      ..addListener(() => setState(() {
+        overlayViewModel = OverlayViewModel.activating(overlayConfig, activationController.value);
+      }))
       ..addStatusListener((AnimationStatus status) {
-        if (status == AnimationStatus.completed) {
+        if (status == AnimationStatus.forward) {
+          setState(() {
+            overlayViewModel = OverlayViewModel.activating(overlayConfig, activationController.value);
+          });
+        } else if (status == AnimationStatus.completed) {
           if (widget.onActivationComplete != null) {
             widget.onActivationComplete();
           }
         }
       });
-  }
 
-  void _animateActivation() {
-    if (pulseController.isAnimating) {
-      pulseController.stop();
-    }
-
-    activationTouchTargetRadius = new Tween(
-      begin: touchTargetRadius.value,
-      end: 0.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: activationController,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    activationTouchTargetOpacity = new Tween(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: activationController,
-        curve: new Interval(
-          0.6,
-          1.0,
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-
-    activationContentOpacity = new Tween(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: activationController,
-        curve: new Interval(
-          0.0,
-          0.4,
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-
-    activationBackgroundRadius = new Tween(
-      begin: widget.backgroundRadius,
-      end: widget.backgroundRadius + 40.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: activationController,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    activationBackgroundOpacity = new Tween(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: activationController,
-        curve: new Interval(
-          0.3,
-          1.0,
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-
-    touchTargetRadius.parent = activationTouchTargetRadius;
-    touchTargetOpacity.parent = activationTouchTargetOpacity;
-    contentOpacity.parent = activationContentOpacity;
-    backgroundRadius.parent = activationBackgroundRadius;
-    backgroundOpacity.parent = activationBackgroundOpacity;
-
-    activationController.forward();
-  }
-
-  void _initDismissAnimations() {
     dismissController = new AnimationController(
         duration: const Duration(milliseconds: 250),
         vsync: this
     )
-      ..addListener(() => setState(() {}))
+      ..addListener(() => setState(() {
+        overlayViewModel = OverlayViewModel.dismissing(overlayConfig, dismissController.value);
+      }))
       ..addStatusListener((AnimationStatus status) {
-        if (status == AnimationStatus.completed) {
+        if (status == AnimationStatus.forward) {
+          setState(() {
+            overlayViewModel = OverlayViewModel.dismissing(overlayConfig, dismissController.value);
+          });
+        } else if (status == AnimationStatus.completed) {
           if (widget.onDismissComplete != null) {
             widget.onDismissComplete();
           }
@@ -762,109 +441,40 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
       });
   }
 
-  void _animateDismiss() {
+  void _open() {
+    openController.forward();
+  }
+
+  void _pulse() {
+    pulseController.forward();
+  }
+
+  void _activate() {
     if (pulseController.isAnimating) {
       pulseController.stop();
     }
 
-    dismissTouchTargetRadius = new Tween(
-      begin: touchTargetRadius.value,
-      end: 0.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: dismissController,
-        curve: Curves.easeOut,
-      ),
-    );
+    activationController.forward();
+  }
 
-    dismissTouchTargetOpacity = new Tween(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: dismissController,
-        curve: new Interval(
-          0.3,
-          1.0,
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-
-    dismissContentOpacity = new Tween(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: dismissController,
-        curve: new Interval(
-          0.0,
-          0.4,
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-
-    dismissBackgroundRadius = new Tween(
-      begin: widget.backgroundRadius,
-      end: 0.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: dismissController,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    dismissBackgroundOpacity = new Tween(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(
-      new CurvedAnimation(
-        parent: dismissController,
-        curve: new Interval(
-          0.3,
-          1.0,
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-
-    touchTargetRadius.parent = dismissTouchTargetRadius;
-    touchTargetOpacity.parent = dismissTouchTargetOpacity;
-    contentOpacity.parent = dismissContentOpacity;
-    backgroundRadius.parent = dismissBackgroundRadius;
-    backgroundOpacity.parent = dismissBackgroundOpacity;
-
-    _animateBackgroundToClosedPosition();
+  void _dismiss() {
+    if (pulseController.isAnimating) {
+      pulseController.stop();
+    }
 
     dismissController.forward();
   }
 
-  Widget _buildBackgroundAboutTouchTargetCenter(Offset anchorCenter) {
-    return new Positioned(
-      left: anchorCenter.dx,
-      top: anchorCenter.dy,
-      child: new FractionalTranslation(
-        translation: const Offset(-0.5, -0.5),
-        child: _buildBackground(backgroundRadius.value),
-      ),
+  Widget _buildBackground(Offset anchorCenter) {
+    return new CenteredAbout(
+      position: overlayViewModel.backgroundCenter,
+      child: _buildBackgroundCircle(overlayViewModel.backgroundRadius),
     );
   }
 
-  Widget _buildBackgroundAtCenterOfScreen() {
-    return new Positioned(
-        left: backgroundCenter.value.dx,
-        top: backgroundCenter.value.dy,
-        child: new FractionalTranslation(
-            translation: const Offset(-0.5, -0.5),
-            child: _buildBackground(backgroundRadius.value)
-        )
-    );
-  }
-
-  Widget _buildBackground(double radius) {
+  Widget _buildBackgroundCircle(double radius) {
     return new Opacity(
-      opacity: backgroundOpacity.value,
+      opacity: overlayViewModel.backgroundOpacity,
       child: new Container(
         width: radius * 2,
         height: radius * 2,
@@ -876,107 +486,234 @@ class _FeatureDiscoveryOverlayState extends State<FeatureDiscoveryOverlay> with 
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final RenderBox anchorBox = widget.targetKey.currentContext.findRenderObject() as RenderBox;
-    final anchorSize = anchorBox.size;
-    final anchorPosition = anchorBox.localToGlobal(const Offset(0.0, 0.0));
-    final anchorCenter = anchorSize.center(anchorPosition);
-
-    return new GestureDetector(
-      onTap: _animateDismiss,
-      child: new Material(
-        color: Colors.transparent,
-        child: new Container(
-          color: Colors.transparent,
-          child: new Stack(
-            alignment: Alignment.topLeft,
-            fit: StackFit.expand,
-            children: <Widget>[
-              widget.backgroundPosition == FeatureDiscoveryBackgroundPosition.centeredAboutTouchTarget
-                ? _buildBackgroundAboutTouchTargetCenter(anchorCenter)
-                : _buildBackgroundAtCenterOfScreen(),
-
-              // Text area
-              new Positioned(
-                top: anchorCenter.dy,
-                child: new Transform(
-                  transform: new Matrix4.translationValues(
-                    0.0,
-                    widget.contentPosition == FeatureDiscoveryContentPosition.below
-                        ? widget.touchBaseRadius + widget.touchPulseWidth + 20.0
-                        : -(widget.touchBaseRadius + widget.touchPulseWidth + 20.0),
-                    0.0,
-                  ),
-                  child: new FractionalTranslation(
-                    translation: new Offset(
-                      0.0,
-                      widget.contentPosition == FeatureDiscoveryContentPosition.below
-                          ? 0.0
-                          : -1.0,
-                    ),
-                    child: new Container(
-                      width: MediaQuery.of(context).size.width,
-                      child: new Padding(
-                        padding: const EdgeInsets.only(left: 40.0, right: 40.0),
-                        child: new Opacity(
-                          opacity: contentOpacity.value,
-                          child: widget.content,
-                        ),
-                      ),
-                    ),
-                  ),
+  Widget _buildContentArea(double y) {
+    return new Positioned(
+      top: y,
+      child: new Transform(
+        transform: new Matrix4.translationValues(
+          0.0,
+          widget.contentPosition == FeatureDiscoveryContentPosition.below
+              ? widget.touchBaseRadius + widget.touchPulseWidth + 20.0
+              : -(widget.touchBaseRadius + widget.touchPulseWidth + 20.0),
+          0.0,
+        ),
+        child: new FractionalTranslation(
+          translation: new Offset(
+            0.0,
+            widget.contentPosition == FeatureDiscoveryContentPosition.below
+                ? 0.0
+                : -1.0,
+          ),
+          child: new Material(
+            color: Colors.transparent,
+            child: new Container(
+              width: MediaQuery.of(context).size.width,
+              child: new Padding(
+                padding: const EdgeInsets.only(left: 40.0, right: 40.0),
+                child: new Opacity(
+                  opacity: overlayViewModel.contentOpacity,
+                  child: widget.content,
                 ),
               ),
-
-              new Positioned(
-                left: anchorCenter.dx,
-                top: anchorCenter.dy,
-                child: new FractionalTranslation(
-                  translation: const Offset(-0.5, -0.5),
-                  child: new Stack(
-                    alignment: Alignment.center,
-                    children: <Widget>[
-                      // Touch Target Wave
-                      new Container(
-                        width: waveRadius.value * 2,
-                        height: waveRadius.value * 2,
-                        decoration: new BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: widget.touchTargetColor.withOpacity(waveOpacity.value),
-                        ),
-                      ),
-
-                      // Touch Target
-                      new Opacity(
-                        opacity: touchTargetOpacity.value,
-                        child: new Container(
-                          width: touchTargetRadius.value * 2,
-                          height: touchTargetRadius.value * 2,
-                          decoration: new BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: widget.touchTargetColor,
-                          ),
-                          child: new RawMaterialButton(
-                              shape: new CircleBorder(),
-                              fillColor: Colors.white,
-                              child: widget.child,
-                              onPressed: () {
-                                _animateActivation();
-                              }
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _buildTouchTarget(Offset anchorCenter) {
+    final buttonRadius = overlayViewModel.touchTargetRadius;
+    final buttonOpacity = overlayViewModel.touchTargetOpacity;
+
+    return new CenteredAbout(
+      position: anchorCenter,
+      child: new Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          // Touch Target Wave
+          new Container(
+            width: overlayViewModel.pulseRadius * 2,
+            height: overlayViewModel.pulseRadius * 2,
+            decoration: new BoxDecoration(
+              shape: BoxShape.circle,
+              color: widget.touchTargetColor.withOpacity(overlayViewModel.pulseOpacity), //widget.touchTargetColor.withOpacity(waveOpacity.value),
+            ),
+          ),
+
+          // Touch Target
+          new Opacity(
+            opacity: buttonOpacity,
+            child: new Container(
+              width: buttonRadius * 2,
+              height: buttonRadius * 2,
+              decoration: new BoxDecoration(
+                shape: BoxShape.circle,
+                color: widget.touchTargetColor,
+              ),
+              child: new RawMaterialButton(
+                  shape: new CircleBorder(),
+                  fillColor: Colors.white,
+                  child: widget.child,
+                  onPressed: () {
+                    _activate();
+                  }
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return new GestureDetector(
+      onTap: _dismiss,
+      behavior: HitTestBehavior.translucent,
+      child: new Stack(
+        alignment: Alignment.topLeft,
+        fit: StackFit.expand,
+        children: <Widget>[
+          // Background
+          _buildBackground(widget.anchorCenter),
+
+          // Content area
+          _buildContentArea(widget.anchorCenter.dy),
+
+          // Touch target and pulse wave,
+          _buildTouchTarget(widget.anchorCenter),
+        ],
+      ),
+    );
+  }
+}
+
+class OverlayConfig {
+  final double openBackgroundRadius;
+  final Offset backgroundCenterStart;
+  final Offset backgroundCenterEnd;
+  final double openBaseTouchTargetRadius;
+  final double openMaxTouchTargetRadius;
+  final double maxPulseRadius;
+  final double maxPulseOpacity;
+
+  OverlayConfig({
+    this.openBackgroundRadius,
+    this.backgroundCenterStart,
+    this.backgroundCenterEnd,
+    this.openBaseTouchTargetRadius,
+    this.openMaxTouchTargetRadius,
+    this.maxPulseRadius,
+    this.maxPulseOpacity,
+  });
+}
+
+class OverlayViewModel {
+
+  final Offset backgroundCenter;
+  final double backgroundRadius;
+  final double backgroundOpacity;
+  final double contentOpacity;
+  final double touchTargetRadius;
+  final double touchTargetOpacity;
+  final double pulseRadius;
+  final double pulseOpacity;
+
+  static OverlayViewModel opening(OverlayConfig config, double percent) {
+    final contentOpacityInterval = new Interval(0.4, 1.0, curve: Curves.easeOut);
+    final touchTargetOpacityInterval = new Interval(0.0, 0.3, curve: Curves.easeOut);
+
+    return new OverlayViewModel._internal(
+      backgroundCenter: Offset.lerp(config.backgroundCenterStart, config.backgroundCenterEnd, percent),
+      backgroundRadius: lerpDouble(0.0, config.openBackgroundRadius, percent),
+      backgroundOpacity: 1.0,
+      contentOpacity: lerpDouble(0.0, 1.0, contentOpacityInterval.transform(percent)),
+      pulseRadius: 0.0,
+      pulseOpacity: 0.0,
+      touchTargetRadius: lerpDouble(0.0, config.openBaseTouchTargetRadius, percent),
+      touchTargetOpacity: lerpDouble(0.0, 1.0, touchTargetOpacityInterval.transform(percent)),
+    );
+  }
+
+  factory OverlayViewModel.pulsing(OverlayConfig config, double percent) {
+    double bouncePercent = 0.0;
+    if (percent < 0.3) {
+      bouncePercent = percent / 0.3;
+    } else if (percent < 0.6) {
+      bouncePercent = 1 - ((percent - 0.3) / 0.3);
+    }
+
+    double pulseRadius = 0.0;
+    double pulseOpacity = 0.0;
+    if (percent > 0.3 && percent < 0.7) {
+      final pulsePercent = (percent - 0.3) / 0.4;
+      pulseRadius = lerpDouble(config.openMaxTouchTargetRadius, config.maxPulseRadius, pulsePercent);
+      pulseOpacity = lerpDouble(config.maxPulseOpacity, 0.0, pulsePercent);
+    }
+
+    return new OverlayViewModel._internal(
+      backgroundCenter: config.backgroundCenterEnd,
+      backgroundRadius: config.openBackgroundRadius,
+      backgroundOpacity: 1.0,
+      contentOpacity: 1.0,
+      pulseRadius: pulseRadius,
+      pulseOpacity: pulseOpacity,
+      touchTargetRadius: lerpDouble(
+          config.openBaseTouchTargetRadius,
+          config.openMaxTouchTargetRadius,
+          bouncePercent
+      ),
+      touchTargetOpacity: 1.0,
+    );
+  }
+
+  // TODO: take in previous state to base pulse expansion on that
+  factory OverlayViewModel.activating(OverlayConfig config, double percent) {
+    final backgroundOpacityInterval = new Interval(0.3, 1.0, curve: Curves.easeOut);
+    final contentOpacityInterval = new Interval(0.0, 0.4, curve: Curves.easeOut);
+    final touchTargetOpacityInterval = new Interval(0.6, 1.0, curve: Curves.easeOut);
+
+    return new OverlayViewModel._internal(
+      backgroundCenter: config.backgroundCenterEnd,
+      backgroundRadius: lerpDouble(config.openBackgroundRadius, config.openBackgroundRadius + 40.0, percent),
+      backgroundOpacity: lerpDouble(1.0, 0.0, backgroundOpacityInterval.transform(percent)),
+      contentOpacity: lerpDouble(1.0, 0.0, contentOpacityInterval.transform(percent)),
+      pulseRadius: lerpDouble(config.maxPulseRadius, 0.0, percent),
+      pulseOpacity: lerpDouble(config.maxPulseOpacity, 0.0, percent),
+      touchTargetRadius: lerpDouble(config.openBaseTouchTargetRadius, 0.0, percent),
+      touchTargetOpacity: lerpDouble(1.0, 0.0, touchTargetOpacityInterval.transform(percent)),
+    );
+  }
+
+  // TODO: take in previous state to base pulse expansion on that
+  factory OverlayViewModel.dismissing(OverlayConfig config, double percent) {
+    final backgroundOpacityInterval = new Interval(0.3, 1.0, curve: Curves.easeOut);
+    final contentOpacityInterval = new Interval(0.0, 0.4, curve: Curves.easeOut);
+    final touchTargetOpacityInterval = new Interval(0.3, 1.0, curve: Curves.easeOut);
+
+    return new OverlayViewModel._internal(
+      backgroundCenter: Offset.lerp(config.backgroundCenterEnd, config.backgroundCenterStart, percent),
+      backgroundRadius: lerpDouble(config.openBackgroundRadius, 0.0, percent),
+      backgroundOpacity: lerpDouble(1.0, 0.0, backgroundOpacityInterval.transform(percent)),
+      contentOpacity: lerpDouble(1.0, 0.0, contentOpacityInterval.transform(percent)),
+      pulseRadius: lerpDouble(config.maxPulseRadius, 0.0, percent),
+      pulseOpacity: lerpDouble(config.maxPulseOpacity, 0.0, percent),
+      touchTargetRadius: lerpDouble(config.openBaseTouchTargetRadius, 0.0, percent),
+      touchTargetOpacity: lerpDouble(1.0, 0.0, touchTargetOpacityInterval.transform(percent)),
+    );
+  }
+
+  OverlayViewModel._internal({
+    this.backgroundCenter,
+    this.backgroundRadius,
+    this.backgroundOpacity,
+    this.contentOpacity,
+    this.pulseRadius,
+    this.pulseOpacity,
+    this.touchTargetRadius,
+    this.touchTargetOpacity,
+  });
 }
 
 enum FeatureDiscoveryContentPosition {

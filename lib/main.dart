@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
       theme: new ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: new FeatureDiscoveryStepper(
+      home: new FeatureDiscovery(
         child: new MyHomePage()
       ),
     );
@@ -151,9 +151,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       'Discover Features!',
                     ),
                     onPressed: () {
-                      // TODO: start steps
-
-                      FeatureDiscoveryStepper
+                      // Start the feature discovery flow.
+                      FeatureDiscovery
                         .of(context)
                         .discoverFeatures([
                           menuIcon,
