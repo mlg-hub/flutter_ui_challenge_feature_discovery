@@ -21,52 +21,13 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+
   @override
   Widget build(BuildContext context) {
-    return new Stack(
-      children: <Widget>[
-        new Scaffold(
-          appBar: new AppBar(
-            leading: new IconButton(
-              icon: new Icon(
-                Icons.menu,
-              ),
-              onPressed: () {
-                // TODO:
-              }
-            ),
-            title: new Text(''),
-            actions: <Widget>[
-              new IconButton(
-                  icon: new Icon(
-                    Icons.search,
-                  ),
-                  onPressed: () {
-                    // TODO:
-                  }
-              ),
-            ],
-          ),
-          body: new Content(),
-          floatingActionButton: new FloatingActionButton(
-            child: new Icon(
-              Icons.add,
-            ),
-            onPressed: () {
-              // TODO:
-            },
-          ),
-        ),
-
-        // Reference rectangle
-        new Container(
-          width: 250.0,
-          height: 450.0,
-          color: Colors.green,
-        ),
-
-        // Positioned rectangle
-        new CenterAbout(
+    return new OverlayBuilder(
+      showOverlay: true,
+      overlayBuilder: (BuildContext context) {
+        return new CenterAbout(
           position: const Offset(250.0, 450.0),
           child: new Container(
             width: 50.0,
@@ -76,8 +37,40 @@ class _MyHomePageState extends State<MyHomePage> {
               color: Colors.red,
             ),
           ),
+        );
+      },
+      child: new Scaffold(
+        appBar: new AppBar(
+          leading: new IconButton(
+            icon: new Icon(
+              Icons.menu,
+            ),
+            onPressed: () {
+              // TODO:
+            }
+          ),
+          title: new Text(''),
+          actions: <Widget>[
+            new IconButton(
+                icon: new Icon(
+                  Icons.search,
+                ),
+                onPressed: () {
+                  // TODO:
+                }
+            ),
+          ],
         ),
-      ],
+        body: new Content(),
+        floatingActionButton: new FloatingActionButton(
+          child: new Icon(
+            Icons.add,
+          ),
+          onPressed: () {
+            // TODO:
+          },
+        ),
+      ),
     );
   }
 }
@@ -165,6 +158,90 @@ class _ContentState extends State<Content> {
       ],
     );
   }
+}
+
+class OverlayBuilder extends StatefulWidget {
+
+  final bool showOverlay;
+  final Function(BuildContext) overlayBuilder;
+  final Widget child;
+
+  OverlayBuilder({
+    this.showOverlay = false,
+    this.overlayBuilder,
+    this.child,
+  });
+
+  @override
+  _OverlayBuilderState createState() => new _OverlayBuilderState();
+}
+
+class _OverlayBuilderState extends State<OverlayBuilder> {
+
+  OverlayEntry overlayEntry;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.showOverlay) {
+      showOverlay();
+    }
+  }
+
+  @override
+  void didUpdateWidget(OverlayBuilder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    syncWidgetAndOverlay();
+  }
+
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    syncWidgetAndOverlay();
+  }
+
+  @override
+  void dispose() {
+    if (isShowingOverlay()) {
+      hideOverlay();
+    }
+
+    super.dispose();
+  }
+
+  bool isShowingOverlay() => overlayEntry != null;
+
+  void showOverlay() {
+    overlayEntry = new OverlayEntry(
+      builder: widget.overlayBuilder,
+    );
+    addToOverlay(overlayEntry);
+  }
+
+  void addToOverlay(OverlayEntry entry) async {
+    Overlay.of(context).insert(entry);
+  }
+
+  void hideOverlay() {
+    overlayEntry.remove();
+    overlayEntry = null;
+  }
+
+  void syncWidgetAndOverlay() {
+    if (isShowingOverlay() && !widget.showOverlay) {
+      hideOverlay();
+    } else if (!isShowingOverlay() && widget.showOverlay) {
+      showOverlay();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
+  }
+
 }
 
 
