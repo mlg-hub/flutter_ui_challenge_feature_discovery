@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:overlays/layouts.dart';
 
 void main() => runApp(new MyApp());
 
@@ -24,24 +25,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return new OverlayBuilder(
-      showOverlay: true,
-      overlayBuilder: (BuildContext context) {
-        return new CenterAbout(
-          position: const Offset(250.0, 450.0),
-          child: new Container(
-            width: 50.0,
-            height: 50.0,
-            decoration: new BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.red,
-            ),
-          ),
-        );
-      },
-      child: new Scaffold(
-        appBar: new AppBar(
-          leading: new IconButton(
+    return new Scaffold(
+      appBar: new AppBar(
+        leading: new DescribedFeatureOverlay(
+          showOverlay: true,
+          icon: Icons.menu,
+          color: Colors.red,
+          child: new IconButton(
             icon: new Icon(
               Icons.menu,
             ),
@@ -49,9 +39,14 @@ class _MyHomePageState extends State<MyHomePage> {
               // TODO:
             }
           ),
-          title: new Text(''),
-          actions: <Widget>[
-            new IconButton(
+        ),
+        title: new Text(''),
+        actions: <Widget>[
+          new DescribedFeatureOverlay(
+            showOverlay: false,
+            icon: Icons.search,
+            color: Colors.green,
+            child: new IconButton(
                 icon: new Icon(
                   Icons.search,
                 ),
@@ -59,25 +54,21 @@ class _MyHomePageState extends State<MyHomePage> {
                   // TODO:
                 }
             ),
-          ],
-        ),
-        body: new Content(),
-        floatingActionButton: new AnchoredOverlay(
-          showOverlay: true,
-          overlayBuilder: (BuildContext context, Offset anchor) {
-            return new CenterAbout(
-              position: anchor,
-              child: new Text('HELLO?'),
-            );
-          },
-          child: new FloatingActionButton(
-            child: new Icon(
-              Icons.add,
-            ),
-            onPressed: () {
-              // TODO:
-            },
           ),
+        ],
+      ),
+      body: new Content(),
+      floatingActionButton: new DescribedFeatureOverlay(
+        showOverlay: false,
+        icon: Icons.add,
+        color: Colors.blue,
+        child: new FloatingActionButton(
+          child: new Icon(
+            Icons.add,
+          ),
+          onPressed: () {
+            // TODO:
+          },
         ),
       ),
     );
@@ -152,15 +143,20 @@ class _ContentState extends State<Content> {
           right: 0.0,
           child: new FractionalTranslation(
             translation: const Offset(-0.5, -0.5),
-            child: new FloatingActionButton(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.blue,
-              child: new Icon(
-                Icons.drive_eta,
+            child: new DescribedFeatureOverlay(
+              showOverlay: false,
+              icon: Icons.drive_eta,
+              color: Colors.blue,
+              child: new FloatingActionButton(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.blue,
+                child: new Icon(
+                  Icons.drive_eta,
+                ),
+                onPressed: () {
+                  // TODO:
+                },
               ),
-              onPressed: () {
-                // TODO:
-              },
             ),
           ),
         ),
@@ -169,145 +165,171 @@ class _ContentState extends State<Content> {
   }
 }
 
-class OverlayBuilder extends StatefulWidget {
+class DescribedFeatureOverlay extends StatefulWidget {
 
   final bool showOverlay;
-  final Widget Function(BuildContext) overlayBuilder;
+  final IconData icon;
+  final Color color;
   final Widget child;
 
-  OverlayBuilder({
+  DescribedFeatureOverlay({
     this.showOverlay = false,
-    this.overlayBuilder,
+    this.icon,
+    this.color,
     this.child,
   });
 
   @override
-  _OverlayBuilderState createState() => new _OverlayBuilderState();
+  _DescribedFeatureOverlayState createState() => new _DescribedFeatureOverlayState();
 }
 
-class _OverlayBuilderState extends State<OverlayBuilder> {
+class _DescribedFeatureOverlayState extends State<DescribedFeatureOverlay> {
 
-  OverlayEntry overlayEntry;
+  Size screenSize;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    screenSize = MediaQuery.of(context).size;
+  }
 
-    if (widget.showOverlay) {
-      showOverlay();
+  bool isCloseToTopOrBottom(Offset anchor) {
+    return anchor.dy <= 88.0 || (screenSize.height - anchor.dy) <= 88.0;
+  }
+
+  bool isOnTopHalfOfScreen(Offset anchor) {
+    return anchor.dy < (screenSize.height / 2.0);
+  }
+
+  bool isOnLeftHalfOfScreen(Offset anchor) {
+    return anchor.dx < (screenSize.width / 2.0);
+  }
+
+  DescribedFeatureContentOrientation getContentOrientation(Offset anchor) {
+    if (isCloseToTopOrBottom(anchor)) {
+      // If we're close to the top or bottom then we want the content
+      // of the overlay to be towards the center of the screen.
+      if (isOnTopHalfOfScreen(anchor)) {
+        return DescribedFeatureContentOrientation.below;
+      } else {
+        return DescribedFeatureContentOrientation.above;
+      }
+    } else {
+      // If we're not close to the top or bottom then we want the content
+      // of the overlay to sit between our anchor and the closest side
+      // of the screen (top or bottom)
+      if (isOnTopHalfOfScreen(anchor)) {
+        return DescribedFeatureContentOrientation.above;
+      } else {
+        return DescribedFeatureContentOrientation.below;
+      }
     }
   }
 
-  @override
-  void didUpdateWidget(OverlayBuilder oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    syncWidgetAndOverlay();
-  }
+  Widget buildOverlay(Offset anchor) {
+    final isBackgroundCentered = isCloseToTopOrBottom(anchor);
+    final contentOrientation = getContentOrientation(anchor);
+    final touchTargetRadius = 44.0;
+    final touchTargetToContentPadding = 20.0;
+    final contentOffsetMultiplier = contentOrientation == DescribedFeatureContentOrientation.below ? 1.0 : -1.0;
+    final contentY = anchor.dy + contentOffsetMultiplier * (touchTargetRadius + touchTargetToContentPadding);
+    final contentFractionalOffset = contentOffsetMultiplier >= 0.0 ? 0.0 : -1.0;
 
-
-  @override
-  void reassemble() {
-    super.reassemble();
-    syncWidgetAndOverlay();
-  }
-
-  @override
-  void dispose() {
-    if (isShowingOverlay()) {
-      hideOverlay();
-    }
-
-    super.dispose();
-  }
-
-  bool isShowingOverlay() => overlayEntry != null;
-
-  void showOverlay() {
-    overlayEntry = new OverlayEntry(
-      builder: widget.overlayBuilder,
-    );
-    addToOverlay(overlayEntry);
-  }
-
-  void addToOverlay(OverlayEntry entry) async {
-    Overlay.of(context).insert(entry);
-  }
-
-  void hideOverlay() {
-    overlayEntry.remove();
-    overlayEntry = null;
-  }
-
-  void syncWidgetAndOverlay() {
-    if (isShowingOverlay() && !widget.showOverlay) {
-      hideOverlay();
-    } else if (!isShowingOverlay() && widget.showOverlay) {
-      showOverlay();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return widget.child;
-  }
-
-}
-
-
-class CenterAbout extends StatelessWidget {
-
-  final Offset position;
-  final Widget child;
-
-  CenterAbout({
-    this.position,
-    this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return new Positioned(
-      left: position.dx,
-      top: position.dy,
-      child: new FractionalTranslation(
-        translation: const Offset(-0.5, -0.5),
-        child: child,
-      ),
-    );
-  }
-}
-
-class AnchoredOverlay extends StatelessWidget {
-
-  final bool showOverlay;
-  final Widget Function(BuildContext, Offset anchor) overlayBuilder;
-  final Widget child;
-
-  AnchoredOverlay({
-    this.showOverlay = false,
-    this.overlayBuilder,
-    this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return new Container(
-      child: new LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          return new OverlayBuilder(
-            showOverlay: showOverlay,
-
-            overlayBuilder: (BuildContext overlayContext) {
-              RenderBox box = context.findRenderObject() as RenderBox;
-              final center = box.size.center(box.localToGlobal(const Offset(0.0, 0.0)));
-
-              return overlayBuilder(overlayContext, center);
-            },
-
-            child: child,
+    final backgroundPosition = isBackgroundCentered
+        ? anchor
+        : new Offset(
+            screenSize.width / 2.0 + (isOnLeftHalfOfScreen(anchor) ? -20.0 : 20.0),
+            anchor.dy + (isOnTopHalfOfScreen(anchor)
+                ? -(screenSize.width / 2.0) + 40.0
+                : (screenSize.width / 2.0) - 40.0
+            ),
           );
-        },
-      ),
+    final backgroundRadius = MediaQuery.of(context).size.width * 2 * (isBackgroundCentered ? 1.0 : 0.75);
+
+    return new Stack(
+      children: <Widget>[
+        // Background
+        new CenterAbout(
+          position: backgroundPosition,
+          child: new Container(
+            width: backgroundRadius,
+            height: backgroundRadius,
+            decoration: new BoxDecoration(
+              shape: BoxShape.circle,
+              color: widget.color,
+            ),
+          ),
+        ),
+
+        // Content
+        new Positioned(
+          top: contentY,
+          child: new FractionalTranslation(
+            translation: new Offset(0.0, contentFractionalOffset),
+            child: new Material(
+              color: Colors.transparent,
+              child: new Padding(
+                padding: const EdgeInsets.only(left: 40.0, right: 40.0),
+                child: new Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    new Text(
+                      'This is a title',
+                      style: new TextStyle(
+                        fontSize: 24.0,
+                        color: Colors.white,
+                      ),
+                    ),
+                    new Text(
+                      'This is a sentence.',
+                      style: new TextStyle(
+                        fontSize: 18.0,
+                        color: Colors.white.withOpacity(0.9),
+                      )
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // Touch Target
+        new CenterAbout(
+          position: anchor,
+          child: new Container(
+            width: 88.0,
+            height: 88.0,
+            child: new RawMaterialButton(
+              fillColor: Colors.white,
+              shape: new CircleBorder(),
+              child: new Icon(
+                widget.icon,
+                color: widget.color,
+              ),
+              onPressed: () {
+                // TODO: activate
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return new AnchoredOverlay(
+      showOverlay: widget.showOverlay,
+      overlayBuilder: (BuildContext overlayContext, Offset anchor) {
+        return buildOverlay(anchor);
+      },
+      child: widget.child,
+    );
+  }
+}
+
+enum DescribedFeatureContentOrientation {
+  above,
+  below,
 }
