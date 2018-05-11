@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:overlays/feature_discovery.dart';
 
 final String feature1 = "FEATURE 1";
@@ -6,7 +7,11 @@ final String feature2 = "FEATURE 2";
 final String feature3 = "FEATURE 3";
 final String feature4 = "FEATURE 4";
 
-void main() => runApp(new MyApp());
+void main() {
+  timeDilation = 1.0;
+
+  runApp(new MyApp());
+}
 
 class MyApp extends StatelessWidget {
   @override

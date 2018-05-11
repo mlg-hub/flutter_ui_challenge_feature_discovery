@@ -406,9 +406,10 @@ class _Background extends StatelessWidget {
 
       switch (state) {
         case _OverlayState.opening:
-          return Offset.lerp(startingBackgroundPosition, endingBackgroundPosition, transitionPercent);
+          final adjustedPercent = const Interval(0.0, 0.8, curve: Curves.easeOut).transform(transitionPercent);;
+          return Offset.lerp(startingBackgroundPosition, endingBackgroundPosition, adjustedPercent);
         case _OverlayState.dismissing:
-          return Offset.lerp(startingBackgroundPosition, endingBackgroundPosition, (1.0 - transitionPercent));
+          return Offset.lerp(endingBackgroundPosition, startingBackgroundPosition, transitionPercent);
         default:
           return endingBackgroundPosition;
       }
@@ -421,7 +422,7 @@ class _Background extends StatelessWidget {
 
     switch(state) {
       case _OverlayState.opening:
-        percentOpen = transitionPercent;
+        percentOpen = const Interval(0.0, 0.8, curve: Curves.easeOut).transform(transitionPercent);
         break;
       case _OverlayState.pulsing:
         percentOpen = 1.0;
@@ -430,7 +431,7 @@ class _Background extends StatelessWidget {
         percentOpen = 1.0 + (0.1 * transitionPercent);
         break;
       case _OverlayState.dismissing:
-        percentOpen = (1.0 - transitionPercent);
+        percentOpen = 1.0 - transitionPercent;
         break;
       default:
         return 0.0;
@@ -441,10 +442,12 @@ class _Background extends StatelessWidget {
 
   double backgroundOpacity() {
     switch (state) {
+      case _OverlayState.opening:
+        return const Interval(0.0, 0.3, curve: Curves.easeOut).transform(transitionPercent);
       case _OverlayState.activating:
-        return (1.0 - transitionPercent).clamp(0.0, 1.0);
+        return 1.0 - const Interval(0.1, 0.6, curve: Curves.easeOut).transform(transitionPercent);
       case _OverlayState.dismissing:
-        return (1.0 - transitionPercent).clamp(0.0, 1.0);
+        return 1.0 - const Interval(0.2, 1.0, curve: Curves.easeOut).transform(transitionPercent);
       default:
         return 1.0;
     }
@@ -539,12 +542,12 @@ class _Content extends StatelessWidget {
   double contentOpacity() {
     switch(state) {
       case _OverlayState.opening:
-        return transitionPercent.clamp(0.0, 1.0);
+        return new Interval(0.6, 1.0, curve: Curves.easeOut).transform(transitionPercent);
       case _OverlayState.pulsing:
         return 1.0;
       case _OverlayState.activating:
       case _OverlayState.dismissing:
-        return (1.0 - transitionPercent).clamp(0.0, 1.0);
+        return 1.0 - const Interval(0.0, 0.4, curve: Curves.easeOut).transform(transitionPercent);
       default:
         return 0.0;
     }
@@ -564,24 +567,32 @@ class _Content extends StatelessWidget {
           opacity: contentOpacity(),
           child: new Material(
             color: Colors.transparent,
-            child: new Padding(
-              padding: const EdgeInsets.only(left: 40.0, right: 40.0),
-              child: new Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  new Text(
-                    'This is a title',
-                    style: new TextStyle(
-                      fontSize: 24.0,
-                      color: Colors.white,
+            child: new Container(
+              width: screenSize.width,
+              child: new Padding(
+                padding: const EdgeInsets.only(left: 40.0, right: 40.0),
+                child: new Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    new Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: new Text(
+                        'Just how you want it',
+                        style: new TextStyle(
+                          fontSize: 24.0,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
-                  ),
-                  new Text('This is a sentence.',
+                    new Text(
+                      'Tap the menu icon to switch accounts, change settings & more.',
+                      softWrap: true,
                       style: new TextStyle(
-                        fontSize: 18.0,
+                        fontSize: 16.0,
                         color: Colors.white.withOpacity(0.9),
                       )),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -615,7 +626,7 @@ class _Pulse extends StatelessWidget {
         return 44.0 + (35.0 * expandedPercent);
       case _OverlayState.dismissing:
       case _OverlayState.activating:
-        return 44.0 + (35.0 * (1.0 - transitionPercent));
+        return 0.0;
       default:
         return 0.0;
     }
@@ -628,7 +639,7 @@ class _Pulse extends StatelessWidget {
         return (percentOpaque * 0.75).clamp(0.0, 1.0);
       case _OverlayState.activating:
       case _OverlayState.dismissing:
-        return ((1.0 - transitionPercent) * 0.5).clamp(0.0, 1.0);
+        return 0.0;
       default:
         return 0.0;
     }
@@ -675,22 +686,22 @@ class _TouchTarget extends StatelessWidget {
   double radius() {
     switch(state) {
       case _OverlayState.opening:
-        return 44.0 * transitionPercent;
+        return 20 + (24.0 * const Interval(0.0, 0.8, curve: Curves.easeOut).transform(transitionPercent));
       case _OverlayState.pulsing:
         double expandedPercent;
         if (transitionPercent < 0.3) {
-          expandedPercent = transitionPercent / 0.3;
+          expandedPercent = const Interval(0.0, 0.3, curve: Curves.easeOut).transform(transitionPercent);
         } else if (transitionPercent < 0.6) {
-          expandedPercent = 1.0 - ((transitionPercent - 0.3) / 0.3);
+          expandedPercent = 1.0 - const Interval(0.3, 0.6, curve: Curves.easeOut).transform(transitionPercent);
         } else {
           expandedPercent = 0.0;
         }
 
-        return 44.0 + (20.0 * expandedPercent);
+        return 44.0 + (10.0 * expandedPercent);
       case _OverlayState.dismissing:
-        return 44.0 * (1.0 - transitionPercent);
+        return 20.0 + (24.0 * (1.0 - transitionPercent));
       case _OverlayState.activating:
-        return 44.0 * (1.0 - transitionPercent);
+        return 20.0 + (24.0 * (1.0 - transitionPercent));
       default:
         return 0.0;
     }
@@ -698,9 +709,11 @@ class _TouchTarget extends StatelessWidget {
 
   double opacity() {
     switch (state) {
+      case _OverlayState.opening:
+        return const Interval(0.0, 0.3, curve: Curves.easeOut).transform(transitionPercent);
       case _OverlayState.activating:
       case _OverlayState.dismissing:
-        return (1.0 - transitionPercent).clamp(0.0, 1.0);
+        return 1.0 - const Interval(0.7, 1.0, curve: Curves.easeOut).transform(transitionPercent);
       default:
         return 1.0;
     }
