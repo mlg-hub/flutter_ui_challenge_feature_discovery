@@ -107,12 +107,18 @@ class DiscoverableFeature extends StatefulWidget {
   final String featureId;
   final IconData icon;
   final Color color;
+  final String title;
+  final String description;
+  final Function(VoidCallback onActionComplete) doAction;
   final Widget child;
 
   DiscoverableFeature({
     this.featureId,
     this.icon,
     this.color,
+    this.title,
+    this.description,
+    this.doAction,
     this.child,
   });
 
@@ -140,8 +146,14 @@ class _DiscoverableFeatureState extends State<DiscoverableFeature> {
       showOverlay: showOverlay,
       icon: widget.icon,
       color: widget.color,
+      title: widget.title,
+      description: widget.description,
       onActivated: () {
-        FeatureDiscovery.markStepComplete(context, widget.featureId);
+        if (null == widget.doAction) {
+          FeatureDiscovery.markStepComplete(context, widget.featureId);
+        } else {
+          widget.doAction(() => FeatureDiscovery.markStepComplete(context, widget.featureId));
+        }
       },
       onDismissed: () {
         FeatureDiscovery.dismiss(context);
@@ -155,6 +167,8 @@ class DescribedFeatureOverlay extends StatefulWidget {
   final bool showOverlay;
   final IconData icon;
   final Color color;
+  final String title;
+  final String description;
   final VoidCallback onActivated;
   final VoidCallback onDismissed;
   final Widget child;
@@ -163,6 +177,8 @@ class DescribedFeatureOverlay extends StatefulWidget {
     this.showOverlay = false,
     this.icon,
     this.color,
+    this.title,
+    this.description,
     this.onActivated,
     this.onDismissed,
     this.child,
@@ -319,6 +335,8 @@ class _DescribedFeatureOverlayState extends State<DescribedFeatureOverlay> with 
         new _Content(
           state: state,
           transitionPercent: transitionPercent,
+          title: widget.title,
+          description: widget.description,
           anchor: anchor,
           screenSize: screenSize,
           touchTargetRadius: 44.0,
@@ -469,7 +487,7 @@ class _Background extends StatelessWidget {
         height: backgroundRadius,
         decoration: new BoxDecoration(
           shape: BoxShape.circle,
-          color: color.withOpacity(backgroundOpacity()),
+          color: color.withOpacity(backgroundOpacity().clamp(0.0, 0.95)),
         ),
       ),
     );
@@ -479,6 +497,8 @@ class _Background extends StatelessWidget {
 class _Content extends StatelessWidget {
   final _OverlayState state;
   final double transitionPercent;
+  final String title;
+  final String description;
   final Offset anchor;
   final Size screenSize;
   final double touchTargetRadius;
@@ -487,6 +507,8 @@ class _Content extends StatelessWidget {
   _Content({
     this.state,
     this.transitionPercent,
+    this.title,
+    this.description,
     this.anchor,
     this.screenSize,
     this.touchTargetRadius,
@@ -577,7 +599,7 @@ class _Content extends StatelessWidget {
                     new Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: new Text(
-                        'Just how you want it',
+                        title,
                         style: new TextStyle(
                           fontSize: 24.0,
                           color: Colors.white,
@@ -585,7 +607,7 @@ class _Content extends StatelessWidget {
                       ),
                     ),
                     new Text(
-                      'Tap the menu icon to switch accounts, change settings & more.',
+                      description,
                       softWrap: true,
                       style: new TextStyle(
                         fontSize: 16.0,

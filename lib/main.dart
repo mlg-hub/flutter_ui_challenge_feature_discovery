@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:overlays/feature_discovery.dart';
@@ -38,10 +40,21 @@ class _MyHomePageState extends State<MyHomePage> {
     return new FeatureDiscovery(
       child: new Scaffold(
         appBar: new AppBar(
+          backgroundColor: Colors.green,
           leading: new DiscoverableFeature(
             featureId: feature1,
             icon: Icons.menu,
-            color: Colors.red,
+            color: Colors.green,
+            title: 'Just how you want it',
+            description: 'Tap the menu icon to switch accounts, change settings & more',
+            doAction: (VoidCallback onActionComplete) {
+              // This Timer emulates a long-running action that needs to occur
+              // before the next feature step can be shown.
+              new Timer(
+                const Duration(seconds: 3),
+                onActionComplete,
+              );
+            },
             child: new IconButton(
               icon: new Icon(
                 Icons.menu,
@@ -57,6 +70,8 @@ class _MyHomePageState extends State<MyHomePage> {
               featureId: feature2,
               icon: Icons.search,
               color: Colors.green,
+              title: 'Search your compounds',
+              description: 'Tap the mangifying glass to quickly scan your compounds.',
               child: new IconButton(
                   icon: new Icon(
                     Icons.search,
@@ -73,6 +88,8 @@ class _MyHomePageState extends State<MyHomePage> {
           featureId: feature3,
           icon: Icons.add,
           color: Colors.blue,
+          title: 'FAB Feature',
+          description: 'This is the FAB and it does stuff.',
           child: new FloatingActionButton(
             child: new Icon(
               Icons.add,
@@ -167,6 +184,8 @@ class _ContentState extends State<Content> {
               featureId: feature4,
               icon: Icons.drive_eta,
               color: Colors.blue,
+              title: 'Find the fastest route',
+              description: 'Get car, walking, cycling or public transit directions to this place.',
               child: new FloatingActionButton(
                 backgroundColor: Colors.white,
                 foregroundColor: Colors.blue,
