@@ -62,13 +62,22 @@ class _MyHomePageState extends State<MyHomePage> {
           ],
         ),
         body: new Content(),
-        floatingActionButton: new FloatingActionButton(
-          child: new Icon(
-            Icons.add,
-          ),
-          onPressed: () {
-            // TODO:
+        floatingActionButton: new AnchoredOverlay(
+          showOverlay: true,
+          overlayBuilder: (BuildContext context, Offset anchor) {
+            return new CenterAbout(
+              position: anchor,
+              child: new Text('HELLO?'),
+            );
           },
+          child: new FloatingActionButton(
+            child: new Icon(
+              Icons.add,
+            ),
+            onPressed: () {
+              // TODO:
+            },
+          ),
         ),
       ),
     );
@@ -163,7 +172,7 @@ class _ContentState extends State<Content> {
 class OverlayBuilder extends StatefulWidget {
 
   final bool showOverlay;
-  final Function(BuildContext) overlayBuilder;
+  final Widget Function(BuildContext) overlayBuilder;
   final Widget child;
 
   OverlayBuilder({
@@ -263,6 +272,41 @@ class CenterAbout extends StatelessWidget {
       child: new FractionalTranslation(
         translation: const Offset(-0.5, -0.5),
         child: child,
+      ),
+    );
+  }
+}
+
+class AnchoredOverlay extends StatelessWidget {
+
+  final bool showOverlay;
+  final Widget Function(BuildContext, Offset anchor) overlayBuilder;
+  final Widget child;
+
+  AnchoredOverlay({
+    this.showOverlay = false,
+    this.overlayBuilder,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return new Container(
+      child: new LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return new OverlayBuilder(
+            showOverlay: showOverlay,
+
+            overlayBuilder: (BuildContext overlayContext) {
+              RenderBox box = context.findRenderObject() as RenderBox;
+              final center = box.size.center(box.localToGlobal(const Offset(0.0, 0.0)));
+
+              return overlayBuilder(overlayContext, center);
+            },
+
+            child: child,
+          );
+        },
       ),
     );
   }
