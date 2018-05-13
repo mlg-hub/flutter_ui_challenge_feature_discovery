@@ -130,7 +130,45 @@ class _ContentState extends State<Content> {
                 },
               ),
             )),
+        new Container(
+          width: 200.0,
+          height: 300.0,
+          color: Colors.red,
+        ),
+        new CenterAbout(
+          position: new Offset(200.0, 300.0),
+          child: new Container(
+            width: 50.0,
+            height: 50.0,
+            decoration: new BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.purple,
+            ),
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class CenterAbout extends StatelessWidget {
+  final Offset position;
+  final Widget child;
+
+  CenterAbout({
+    this.position,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return new Positioned(
+      top: position.dy,
+      left: position.dx,
+      child: new FractionalTranslation(
+        translation: const Offset(-0.5, -0.5),
+        child: child,
+      ),
     );
   }
 }
