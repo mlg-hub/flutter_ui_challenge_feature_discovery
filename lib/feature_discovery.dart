@@ -102,6 +102,7 @@ class DescribedFeatureOverlay extends StatefulWidget {
   final Color color;
   final String title;
   final String description;
+  final Function(VoidCallback onActionComplete) doAction;
   final Widget child;
 
   DescribedFeatureOverlay({
@@ -110,6 +111,7 @@ class DescribedFeatureOverlay extends StatefulWidget {
     this.color,
     this.title,
     this.description,
+    this.doAction,
     this.child,
   });
 
@@ -178,7 +180,13 @@ class _DescribedFeatureOverlayState extends State<DescribedFeatureOverlay>
         if (status == AnimationStatus.forward) {
           setState(() => state = _OverlayState.activating);
         } else if (status == AnimationStatus.completed) {
-          FeatureDiscovery.markStepComplete(context, widget.featureId);
+          if (widget.doAction == null) {
+            FeatureDiscovery.markStepComplete(context, widget.featureId);
+          } else {
+            widget.doAction(() {
+              FeatureDiscovery.markStepComplete(context, widget.featureId);
+            });
+          }
         }
       });
 
@@ -327,8 +335,9 @@ class _Background extends StatelessWidget {
 
       switch (state) {
         case _OverlayState.opening:
-          return Offset.lerp(
-              startingBackgroundPosition, endingBackgroundPosition, transitionPercent);
+          final adjustedPercent =
+              const Interval(0.0, 0.8, curve: Curves.easeOut).transform(transitionPercent);
+          return Offset.lerp(startingBackgroundPosition, endingBackgroundPosition, adjustedPercent);
         case _OverlayState.activating:
           return endingBackgroundPosition;
         case _OverlayState.dismissing:
@@ -346,7 +355,9 @@ class _Background extends StatelessWidget {
 
     switch (state) {
       case _OverlayState.opening:
-        return backgroundRadius * transitionPercent;
+        final adjustedPercent =
+            const Interval(0.0, 0.8, curve: Curves.easeOut).transform(transitionPercent);
+        return backgroundRadius * adjustedPercent;
       case _OverlayState.activating:
         return backgroundRadius + (transitionPercent * 40.0);
       case _OverlayState.dismissing:
@@ -359,11 +370,17 @@ class _Background extends StatelessWidget {
   double backgroundOpacity() {
     switch (state) {
       case _OverlayState.opening:
-        return 0.96 * transitionPercent;
+        final adjustedPercent =
+            const Interval(0.0, 0.3, curve: Curves.easeOut).transform(transitionPercent);
+        return 0.96 * adjustedPercent;
       case _OverlayState.activating:
-        return 0.96 * (1.0 - transitionPercent);
+        final adjustedPercent =
+            const Interval(0.1, 0.6, curve: Curves.easeOut).transform(transitionPercent);
+        return 0.96 * (1.0 - adjustedPercent);
       case _OverlayState.dismissing:
-        return 0.96 * (1.0 - transitionPercent);
+        final adjustedPercent =
+            const Interval(0.2, 1.0, curve: Curves.easeOut).transform(transitionPercent);
+        return 0.96 * (1.0 - adjustedPercent);
       default:
         return 0.96;
     }
@@ -439,11 +456,14 @@ class _Content extends StatelessWidget {
       case _OverlayState.closed:
         return 0.0;
       case _OverlayState.opening:
-        return transitionPercent;
+        final adjustedPercent =
+            const Interval(0.6, 1.0, curve: Curves.easeOut).transform(transitionPercent);
+        return adjustedPercent;
       case _OverlayState.activating:
-        return 1.0 - transitionPercent;
       case _OverlayState.dismissing:
-        return 1.0 - transitionPercent;
+        final adjustedPercent =
+            const Interval(0.0, 0.4, curve: Curves.easeOut).transform(transitionPercent);
+        return 1.0 - adjustedPercent;
       default:
         return 1.0;
     }
@@ -463,32 +483,35 @@ class _Content extends StatelessWidget {
           translation: new Offset(0.0, contentFractionalOffset),
           child: new Opacity(
             opacity: opacity(),
-            child: new Material(
-                color: Colors.transparent,
-                child: new Padding(
-                    padding: const EdgeInsets.only(left: 40.0, right: 40.0),
-                    child: new Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        new Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: new Text(
-                            title,
-                            style: new TextStyle(
-                              fontSize: 20.0,
-                              color: Colors.white,
+            child: new Container(
+              width: screenSize.width,
+              child: new Material(
+                  color: Colors.transparent,
+                  child: new Padding(
+                      padding: const EdgeInsets.only(left: 40.0, right: 40.0),
+                      child: new Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          new Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: new Text(
+                              title,
+                              style: new TextStyle(
+                                fontSize: 20.0,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ),
-                        new Text(
-                          description,
-                          style: new TextStyle(
-                            fontSize: 18.0,
-                            color: Colors.white.withOpacity(0.9),
+                          new Text(
+                            description,
+                            style: new TextStyle(
+                              fontSize: 16.0,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
                           ),
-                        ),
-                      ],
-                    ))),
+                        ],
+                      ))),
+            ),
           ),
         ));
   }
@@ -518,7 +541,7 @@ class _Pulse extends StatelessWidget {
         return 44.0 + (35.0 * expandedPercent);
       case _OverlayState.dismissing:
       case _OverlayState.activating:
-        return (44.0 + 35.0) * (1.0 - transitionPercent);
+        return 0.0;
       default:
         return 0.0;
     }
@@ -531,7 +554,7 @@ class _Pulse extends StatelessWidget {
         return (percentOpaque * 0.75).clamp(0.0, 1.0);
       case _OverlayState.activating:
       case _OverlayState.dismissing:
-        return ((1.0 - transitionPercent) * 0.5).clamp(0.0, 1.0);
+        return 0.0;
       default:
         return 0.0;
     }
@@ -579,7 +602,7 @@ class _TouchTarget extends StatelessWidget {
       case _OverlayState.closed:
         return 0.0;
       case _OverlayState.opening:
-        return 44.0 * transitionPercent;
+        return 20 + (24.0 * transitionPercent);
       case _OverlayState.pulsing:
         double expandedPercent;
         if (transitionPercent < 0.3) {
@@ -592,11 +615,22 @@ class _TouchTarget extends StatelessWidget {
 
         return 44.0 + (20.0 * expandedPercent);
       case _OverlayState.activating:
-        return 44.0 * (1.0 - transitionPercent);
       case _OverlayState.dismissing:
-        return 44.0 * (1.0 - transitionPercent);
+        return 20 + (24.0 * (1.0 - transitionPercent));
       default:
         return 44.0;
+    }
+  }
+
+  double opacity() {
+    switch (state) {
+      case _OverlayState.opening:
+        return const Interval(0.0, 0.3, curve: Curves.easeOut).transform(transitionPercent);
+      case _OverlayState.activating:
+      case _OverlayState.dismissing:
+        return 1.0 - const Interval(0.7, 1.0, curve: Curves.easeOut).transform(transitionPercent);
+      default:
+        return 1.0;
     }
   }
 
@@ -607,14 +641,17 @@ class _TouchTarget extends StatelessWidget {
       child: new Container(
         width: 2 * radius(),
         height: 2 * radius(),
-        child: new RawMaterialButton(
-          shape: new CircleBorder(),
-          fillColor: Colors.white,
-          child: new Icon(
-            icon,
-            color: color,
+        child: new Opacity(
+          opacity: opacity(),
+          child: new RawMaterialButton(
+            shape: new CircleBorder(),
+            fillColor: Colors.white,
+            child: new Icon(
+              icon,
+              color: color,
+            ),
+            onPressed: onPressed,
           ),
-          onPressed: onPressed,
         ),
       ),
     );

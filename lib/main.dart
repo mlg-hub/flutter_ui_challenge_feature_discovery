@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:overlays/feature_discovery.dart';
 
-void main() => runApp(new MyApp());
+void main() {
+  timeDilation = 1.0;
+
+  runApp(new MyApp());
+}
 
 final feature1 = "FEATURE_1";
 final feature2 = "FEATURE_2";
@@ -37,8 +42,8 @@ class _MyHomePageState extends State<MyHomePage> {
             featureId: feature1,
             icon: Icons.menu,
             color: Colors.green,
-            title: 'The Title',
-            description: 'The Description',
+            title: 'Just how you want it',
+            description: 'Tap the menu icon to switch accounts, change settings & more.',
             child: new IconButton(
               icon: new Icon(
                 Icons.menu,
@@ -54,8 +59,8 @@ class _MyHomePageState extends State<MyHomePage> {
               featureId: feature2,
               icon: Icons.search,
               color: Colors.green,
-              title: 'The Title',
-              description: 'The Description',
+              title: 'Search your compounds',
+              description: 'Tap the magnifying glass to quickly scan your compounds.',
               child: new IconButton(
                 icon: new Icon(
                   Icons.search,
@@ -72,8 +77,8 @@ class _MyHomePageState extends State<MyHomePage> {
           featureId: feature3,
           icon: Icons.add,
           color: Colors.blue,
-          title: 'The Title',
-          description: 'The Description',
+          title: 'FAB Feature',
+          description: 'This is the FAB and it does stuff.',
           child: new FloatingActionButton(
             child: new Icon(
               Icons.add,
@@ -153,8 +158,9 @@ class _ContentState extends State<Content> {
                 featureId: feature4,
                 icon: Icons.drive_eta,
                 color: Colors.blue,
-                title: 'The Title',
-                description: 'The Description',
+                title: 'Find the fastest route',
+                description:
+                    'Get car, walking, cycling or public transit directions to this place.',
                 child: new FloatingActionButton(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.blue,
