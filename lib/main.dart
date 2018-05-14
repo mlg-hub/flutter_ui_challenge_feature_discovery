@@ -3,6 +3,11 @@ import 'package:overlays/layout.dart';
 
 void main() => runApp(new MyApp());
 
+final feature1 = "FEATURE_1";
+final feature2 = "FEATURE_2";
+final feature3 = "FEATURE_3";
+final feature4 = "FEATURE_4";
+
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -24,57 +29,59 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
-    return new Scaffold(
-      appBar: new AppBar(
-        backgroundColor: Colors.green,
-        leading: new DescribedFeatureOverlay(
-          showOverlay: false,
-          icon: Icons.menu,
-          color: Colors.green,
-          title: 'The Title',
-          description: 'The Description',
-          child: new IconButton(
-            icon: new Icon(
-              Icons.menu,
-            ),
-            onPressed: () {
-              // TODO:
-            },
-          ),
-        ),
-        title: new Text(''),
-        actions: <Widget>[
-          new DescribedFeatureOverlay(
-            showOverlay: false,
-            icon: Icons.search,
+    return new FeatureDiscovery(
+      child: new Scaffold(
+        appBar: new AppBar(
+          backgroundColor: Colors.green,
+          leading: new DescribedFeatureOverlay(
+            featureId: feature1,
+            icon: Icons.menu,
             color: Colors.green,
             title: 'The Title',
             description: 'The Description',
             child: new IconButton(
               icon: new Icon(
-                Icons.search,
+                Icons.menu,
               ),
               onPressed: () {
                 // TODO:
               },
             ),
           ),
-        ],
-      ),
-      body: new Content(),
-      floatingActionButton: new DescribedFeatureOverlay(
-        showOverlay: false,
-        icon: Icons.add,
-        color: Colors.blue,
-        title: 'The Title',
-        description: 'The Description',
-        child: new FloatingActionButton(
-          child: new Icon(
-            Icons.add,
+          title: new Text(''),
+          actions: <Widget>[
+            new DescribedFeatureOverlay(
+              featureId: feature2,
+              icon: Icons.search,
+              color: Colors.green,
+              title: 'The Title',
+              description: 'The Description',
+              child: new IconButton(
+                icon: new Icon(
+                  Icons.search,
+                ),
+                onPressed: () {
+                  // TODO:
+                },
+              ),
+            ),
+          ],
+        ),
+        body: new Content(),
+        floatingActionButton: new DescribedFeatureOverlay(
+          featureId: feature3,
+          icon: Icons.add,
+          color: Colors.blue,
+          title: 'The Title',
+          description: 'The Description',
+          child: new FloatingActionButton(
+            child: new Icon(
+              Icons.add,
+            ),
+            onPressed: () {
+              // TODO:
+            },
           ),
-          onPressed: () {
-            // TODO:
-          },
         ),
       ),
     );
@@ -131,7 +138,8 @@ class _ContentState extends State<Content> {
                 child: new RaisedButton(
                   child: new Text('Do Feature Discovery'),
                   onPressed: () {
-                    // TODO: do feature discovery.
+                    FeatureDiscovery
+                        .discoverFeatures(context, [feature1, feature2, feature3, feature4]);
                   },
                 )),
           ],
@@ -142,7 +150,7 @@ class _ContentState extends State<Content> {
             child: new FractionalTranslation(
               translation: const Offset(-0.5, -0.5),
               child: new DescribedFeatureOverlay(
-                showOverlay: true,
+                featureId: feature4,
                 icon: Icons.drive_eta,
                 color: Colors.blue,
                 title: 'The Title',
@@ -164,8 +172,103 @@ class _ContentState extends State<Content> {
   }
 }
 
+class FeatureDiscovery extends StatefulWidget {
+  static String activeStep(BuildContext context) {
+    return (context.inheritFromWidgetOfExactType(_InheritedFeatureDiscovery)
+            as _InheritedFeatureDiscovery)
+        .activeStepId;
+  }
+
+  static void discoverFeatures(BuildContext context, List<String> steps) {
+    _FeatureDiscoveryState state = context
+        .ancestorStateOfType(new TypeMatcher<_FeatureDiscoveryState>()) as _FeatureDiscoveryState;
+
+    state.discoverFeatures(steps);
+  }
+
+  static void markStepComplete(BuildContext context, String stepId) {
+    _FeatureDiscoveryState state = context
+        .ancestorStateOfType(new TypeMatcher<_FeatureDiscoveryState>()) as _FeatureDiscoveryState;
+
+    state.markStepComplete(stepId);
+  }
+
+  static void dismiss(BuildContext context) {
+    _FeatureDiscoveryState state = context
+        .ancestorStateOfType(new TypeMatcher<_FeatureDiscoveryState>()) as _FeatureDiscoveryState;
+
+    state.dismiss();
+  }
+
+  final Widget child;
+
+  FeatureDiscovery({
+    this.child,
+  });
+
+  @override
+  _FeatureDiscoveryState createState() => new _FeatureDiscoveryState();
+}
+
+class _FeatureDiscoveryState extends State<FeatureDiscovery> {
+  List<String> steps;
+  int activeStepIndex;
+
+  void discoverFeatures(List<String> steps) {
+    setState(() {
+      this.steps = steps;
+      activeStepIndex = 0;
+    });
+  }
+
+  void markStepComplete(String stepId) {
+    if (steps != null && steps[activeStepIndex] == stepId) {
+      setState(() {
+        ++activeStepIndex;
+
+        if (activeStepIndex >= steps.length) {
+          _cleanupAfterSteps();
+        }
+      });
+    }
+  }
+
+  void dismiss() {
+    setState(() {
+      _cleanupAfterSteps();
+    });
+  }
+
+  void _cleanupAfterSteps() {
+    steps = null;
+    activeStepIndex = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return new _InheritedFeatureDiscovery(
+      activeStepId: steps?.elementAt(activeStepIndex),
+      child: widget.child,
+    );
+  }
+}
+
+class _InheritedFeatureDiscovery extends InheritedWidget {
+  final String activeStepId;
+
+  _InheritedFeatureDiscovery({
+    this.activeStepId,
+    child,
+  }) : super(child: child);
+
+  @override
+  bool updateShouldNotify(_InheritedFeatureDiscovery oldWidget) {
+    return oldWidget.activeStepId != activeStepId;
+  }
+}
+
 class DescribedFeatureOverlay extends StatefulWidget {
-  final bool showOverlay;
+  final String featureId;
   final IconData icon;
   final Color color;
   final String title;
@@ -173,7 +276,7 @@ class DescribedFeatureOverlay extends StatefulWidget {
   final Widget child;
 
   DescribedFeatureOverlay({
-    this.showOverlay,
+    this.featureId,
     this.icon,
     this.color,
     this.title,
@@ -187,12 +290,20 @@ class DescribedFeatureOverlay extends StatefulWidget {
 
 class _DescribedFeatureOverlayState extends State<DescribedFeatureOverlay> {
   Size screenSize;
+  bool showOverlay = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
     screenSize = MediaQuery.of(context).size;
+
+    showOverlayIfActiveStep();
+  }
+
+  void showOverlayIfActiveStep() {
+    String activeStep = FeatureDiscovery.activeStep(context);
+    setState(() => showOverlay = activeStep == widget.featureId);
   }
 
   bool isCloseToTopOrBottom(Offset position) {
@@ -223,10 +334,18 @@ class _DescribedFeatureOverlayState extends State<DescribedFeatureOverlay> {
     }
   }
 
+  void activate() {
+    FeatureDiscovery.markStepComplete(context, widget.featureId);
+  }
+
+  void dismiss() {
+    FeatureDiscovery.dismiss(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     return new AnchoredOverlay(
-      showOverlay: widget.showOverlay,
+      showOverlay: showOverlay,
       overlayBuilder: (BuildContext context, Offset anchor) {
         final touchTargetRadius = 44.0;
         final contentOrientation = getContentOrientation(anchor);
@@ -248,6 +367,14 @@ class _DescribedFeatureOverlayState extends State<DescribedFeatureOverlay> {
 
         return new Stack(
           children: <Widget>[
+            new GestureDetector(
+              onTap: dismiss,
+              child: new Container(
+                width: double.infinity,
+                height: double.infinity,
+                color: Colors.transparent,
+              ),
+            ),
             new CenterAbout(
               position: backgroundPosition,
               child: new Container(
@@ -302,9 +429,7 @@ class _DescribedFeatureOverlayState extends State<DescribedFeatureOverlay> {
                     widget.icon,
                     color: widget.color,
                   ),
-                  onPressed: () {
-                    // TODO:
-                  },
+                  onPressed: activate,
                 ),
               ),
             ),
