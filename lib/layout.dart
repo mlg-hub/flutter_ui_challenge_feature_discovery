@@ -88,7 +88,8 @@ class _OverlayBuilderState extends State<OverlayBuilder> {
   }
 
   void addToOverlay(OverlayEntry entry) async {
-    Overlay.of(context).insert(entry);
+    final overlay = Overlay.of(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) => overlay.insert(overlayEntry));
   }
 
   void hideOverlay() {
@@ -105,7 +106,9 @@ class _OverlayBuilderState extends State<OverlayBuilder> {
   }
 
   void buildOverlay() async {
-    overlayEntry?.markNeedsBuild();
+    // when we delay the rebuild process it fixes the bug , hope it help
+    await Future.delayed(Duration(milliseconds: 1 )).then((_) => overlayEntry?.markNeedsBuild());
+    // overlayEntry?.markNeedsBuild();
   }
 
   @override
